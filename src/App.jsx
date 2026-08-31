@@ -6,12 +6,14 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
 
-// Icona "moneta + freccia" per l'header: contorno moneta (stroke) con freccia piena (fill), stesso stile delle icone lucide-react.
-function CoinArrowIcon({ size = 18, color = "currentColor" }) {
+// Icona "tre fulmini" per l'header: un fulmine grande al centro affiancato da due più piccoli, stessa forma ripetuta in scala diversa.
+function LightningIcon({ size = 18, color = "currentColor" }) {
+  const bolt = "13,2 3,14 12,14 11,22 21,10 12,10 13,2";
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="12" cy="12" r="9.25" stroke={color} strokeWidth="1.7" fill="none" />
-      <polygon points="6.2,16.2 7.8,17.8 13.8,11.8 14.6,12.6 17,7 11.4,9.4 12.2,10.2" fill={color} />
+    <svg width={size * (40 / 24)} height={size} viewBox="0 0 40 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(0,6) scale(0.5)"><polygon points={bolt} fill={color} /></g>
+      <g transform="translate(9.2,1.2) scale(0.9)"><polygon points={bolt} fill={color} /></g>
+      <g transform="translate(28,6) scale(0.5)"><polygon points={bolt} fill={color} /></g>
     </svg>
   );
 }
@@ -81,7 +83,7 @@ const CURRENCIES = {
   GBP: { symbol: "£", locale: "en-GB", label: "British Pound (£)" },
   CNY: { symbol: "¥", locale: "zh-CN", label: "人民币 · Yuan (¥)" },
   RUB: { symbol: "₽", locale: "ru-RU", label: "Российский рубль (₽)" },
-  RON: { symbol: "lei", locale: "ro-RO", label: "Leu românesc (lei)" },
+  MDL: { symbol: "lei", locale: "ro-MD", label: "Leu moldovenesc (lei)" },
 };
 const currency = (n, code = "EUR") => {
   const c = CURRENCIES[code] || CURRENCIES.EUR;
@@ -1203,7 +1205,7 @@ export default function Finbar() {
       <div style={{ padding: "20px 18px 14px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 24, fontWeight: 800, letterSpacing: "0.04em", fontFamily: "'Cinzel', serif", color: t.accent2, textShadow: `0 0 18px ${t.accent}40` }}>
-            <CoinArrowIcon size={18} color={t.accent} />
+            <LightningIcon size={18} color={t.accent} />
             FINBAR
           </div>
           <div style={{ display: "flex", gap: 8 }}>
