@@ -397,6 +397,7 @@ const UI = {
     monthlyTrend: "Andamento mensile", vsLastMonth: "vs mese scorso", netMonthly: "Netto mensile", threshold20: "Soglia +20%",
     categoriesTitle: "Categorie", total: "Totale", learnedWords: "Parole imparate", customWords: "Parole personalizzate",
     obNext: "Avanti", obSkip: "Salta", obStart: "Inizia",
+    deleteConfirmTitle: "Eliminare questo conto?",     deleteConfirmWarning: "ATTENZIONE: eliminando questo conto verranno cancellati anche i dati salvati sul cloud collegati al tuo codice di sincronizzazione. Se è l'unico conto, il codice smetterà di funzionare per recuperare dati su altri dispositivi. L'operazione non si può annullare.",    deleteConfirmCancel: "Annulla", deleteConfirmBtn: "Elimina definitivamente",
     newCategoryPh: "Nuova categoria…",
     recurringTitle: "Entrate e uscite automatiche · stipendi, pagette, abbonamenti…", recurringEmpty: "Nessuna voce ricorrente impostata.",
     weekly: "Ogni settimana", monthly: "Ogni mese", yearly: "Ogni anno", lastRun: "ultima", notActiveYet: "non ancora attiva",
@@ -432,6 +433,7 @@ const UI = {
     monthlyTrend: "Monthly trend", vsLastMonth: "vs last month", netMonthly: "Monthly net", threshold20: "+20% threshold",
     categoriesTitle: "Categories", total: "Total", learnedWords: "Learned words", customWords: "Custom words",
     obNext: "Next", obSkip: "Skip", obStart: "Get started",
+    deleteConfirmTitle: "Delete this account?",     deleteConfirmWarning: "WARNING: deleting this account will also erase the cloud data linked to your sync code. If it's your only account, the code will stop working to recover data on other devices. This cannot be undone.",    deleteConfirmCancel: "Cancel", deleteConfirmBtn: "Delete permanently",
     newCategoryPh: "New category…",
     recurringTitle: "Automatic income & expenses · salary, allowance, subscriptions…", recurringEmpty: "No recurring entries set.",
     weekly: "Every week", monthly: "Every month", yearly: "Every year", lastRun: "last", notActiveYet: "not active yet",
@@ -467,6 +469,7 @@ const UI = {
     monthlyTrend: "Evoluție lunară", vsLastMonth: "față de luna trecută", netMonthly: "Net lunar", threshold20: "Prag +20%",
     categoriesTitle: "Categorii", total: "Total", learnedWords: "Cuvinte învățate", customWords: "Cuvinte personalizate",
     obNext: "Înainte", obSkip: "Sari peste", obStart: "Începe",
+    deleteConfirmTitle: "Ștergi acest cont?",     deleteConfirmWarning: "ATENȚIE: ștergând acest cont vor fi șterse și datele din cloud asociate codului tău de sincronizare. Dacă este singurul cont, codul nu va mai putea recupera date pe alte dispozitive. Operația nu poate fi anulată.",    deleteConfirmCancel: "Anulează", deleteConfirmBtn: "Șterge definitiv",
     newCategoryPh: "Categorie nouă…",
     recurringTitle: "Venituri și cheltuieli automate · salariu, alocație, abonamente…", recurringEmpty: "Nicio înregistrare recurentă setată.",
     weekly: "În fiecare săptămână", monthly: "În fiecare lună", yearly: "În fiecare an", lastRun: "ultima", notActiveYet: "încă inactivă",
@@ -502,6 +505,7 @@ const UI = {
     monthlyTrend: "Динамика по месяцам", vsLastMonth: "к прошлому месяцу", netMonthly: "Итог за месяц", threshold20: "Порог +20%",
     categoriesTitle: "Категории", total: "Всего", learnedWords: "Изученные слова", customWords: "Пользовательские слова",
     obNext: "Далее", obSkip: "Пропустить", obStart: "Начать",
+    deleteConfirmTitle: "Удалить этот счёт?",     deleteConfirmWarning: "ВНИМАНИЕ: удаление этого счёта также сотрёт данные в облаке, связанные с вашим кодом синхронизации. Если это ваш единственный счёт, код перестанет восстанавливать данные на других устройствах. Действие необратимо.",    deleteConfirmCancel: "Отмена", deleteConfirmBtn: "Удалить окончательно",
     newCategoryPh: "Новая категория…",
     recurringTitle: "Автоматические доходы и расходы · зарплата, пособия, подписки…", recurringEmpty: "Нет повторяющихся записей.",
     weekly: "Каждую неделю", monthly: "Каждый месяц", yearly: "Каждый год", lastRun: "последний раз", notActiveYet: "ещё не активна",
@@ -537,6 +541,7 @@ const UI = {
     monthlyTrend: "月度趋势", vsLastMonth: "较上月", netMonthly: "月净额", threshold20: "+20% 阈值",
     categoriesTitle: "分类", total: "总计", learnedWords: "已学会的词", customWords: "自定义词汇",
     obNext: "下一步", obSkip: "跳过", obStart: "开始使用",
+    deleteConfirmTitle: "删除此账户？",     deleteConfirmWarning: "警告：删除此账户还会清除与你的同步代码关联的云端数据。如果这是你唯一的账户，该代码将无法再在其他设备上恢复数据。此操作无法撤销。",    deleteConfirmCancel: "取消", deleteConfirmBtn: "永久删除",
     newCategoryPh: "新分类…",
     recurringTitle: "自动收支 · 工资、零花钱、订阅…", recurringEmpty: "还没有设置自动记录。",
     weekly: "每周", monthly: "每月", yearly: "每年", lastRun: "上次", notActiveYet: "尚未生效",
@@ -806,6 +811,7 @@ export default function Finbar() {
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
 
   const scrollRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -1710,6 +1716,31 @@ export default function Finbar() {
         );
       })()}
 
+      {showSettings && confirmDeleteAccount && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,20,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40, padding: 24 }}>
+          <div style={{ background: t.modalBg, border: "1.5px solid #4A2A2A", borderRadius: 18, padding: 24, width: "100%", maxWidth: 380 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <Trash2 size={18} color="#FF7A6B" />
+              <h2 className="display" style={{ fontSize: 16, fontWeight: 700, margin: 0, color: t.textStrong }}>{ui.deleteConfirmTitle}</h2>
+            </div>
+            <div style={{ fontSize: 12.5, color: "#FF9A8D", lineHeight: 1.6, marginBottom: 20, background: "rgba(255,122,107,0.08)", border: "1px solid #4A2A2A", borderRadius: 10, padding: 12 }}>
+              {ui.deleteConfirmWarning}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setConfirmDeleteAccount(false)} style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: `1.5px solid ${t.surfaceBorder}`, background: "transparent", color: t.textMuted, fontSize: 13.5, fontWeight: 500, cursor: "pointer" }}>
+                {ui.deleteConfirmCancel}
+              </button>
+              <button
+                onClick={() => { deleteAccount(account.id); setConfirmDeleteAccount(false); setShowSettings(false); }}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "none", background: "#FF7A6B", color: "#1A0D0B", fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}
+              >
+                {ui.deleteConfirmBtn}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSettings && (
         <Modal onClose={() => setShowSettings(false)} title={ui.settingsTitle} t={t}>
           <div style={{ fontSize: 12, color: t.textMuted, margin: "4px 0 10px", display: "flex", alignItems: "center", gap: 6 }}><KeyRound size={13} /> {ui.syncCodeTitle}</div>
@@ -1901,7 +1932,7 @@ export default function Finbar() {
               </div>
               <RecurringForm accent={t.accent} t={t} categories={account.categories} onAdd={addRecurring} ui={ui} />
 
-              <button onClick={() => { deleteAccount(account.id); setShowSettings(false); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "none", border: "1.5px solid #4A2A2A", borderRadius: 10, padding: "11px 0", color: "#FF7A6B", fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 20 }}>
+              <button onClick={() => setConfirmDeleteAccount(true)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "none", border: "1.5px solid #4A2A2A", borderRadius: 10, padding: "11px 0", color: "#FF7A6B", fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 20 }}>
                 <Trash2 size={14} /> {ui.deleteAccount}
               </button>
             </>
