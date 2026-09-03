@@ -23,6 +23,7 @@ const THEME_KEY = "finex:theme";
 const CHAT_KEY = "finex:chat";
 const SYNC_CODE_KEY = "finex:sync-code";
 const LANGUAGE_KEY = "finex:language";
+const ONBOARDING_KEY = "finex:onboarding-seen";
 
 // ---- Supabase: sincronizzazione tra dispositivi tramite codice ----
 const SUPABASE_URL = "https://vhlneufpkwzbuapwlmap.supabase.co";
@@ -395,6 +396,7 @@ const UI = {
     languageTitle: "Lingua", themeTitle: "Tema colore", currencyTitle: "Valuta del conto",
     monthlyTrend: "Andamento mensile", vsLastMonth: "vs mese scorso", netMonthly: "Netto mensile", threshold20: "Soglia +20%",
     categoriesTitle: "Categorie", total: "Totale", learnedWords: "Parole imparate", customWords: "Parole personalizzate",
+    obNext: "Avanti", obSkip: "Salta", obStart: "Inizia",
     newCategoryPh: "Nuova categoria…",
     recurringTitle: "Entrate e uscite automatiche · stipendi, pagette, abbonamenti…", recurringEmpty: "Nessuna voce ricorrente impostata.",
     weekly: "Ogni settimana", monthly: "Ogni mese", yearly: "Ogni anno", lastRun: "ultima", notActiveYet: "non ancora attiva",
@@ -429,6 +431,7 @@ const UI = {
     languageTitle: "Language", themeTitle: "Color theme", currencyTitle: "Account currency",
     monthlyTrend: "Monthly trend", vsLastMonth: "vs last month", netMonthly: "Monthly net", threshold20: "+20% threshold",
     categoriesTitle: "Categories", total: "Total", learnedWords: "Learned words", customWords: "Custom words",
+    obNext: "Next", obSkip: "Skip", obStart: "Get started",
     newCategoryPh: "New category…",
     recurringTitle: "Automatic income & expenses · salary, allowance, subscriptions…", recurringEmpty: "No recurring entries set.",
     weekly: "Every week", monthly: "Every month", yearly: "Every year", lastRun: "last", notActiveYet: "not active yet",
@@ -463,6 +466,7 @@ const UI = {
     languageTitle: "Limbă", themeTitle: "Temă de culoare", currencyTitle: "Moneda contului",
     monthlyTrend: "Evoluție lunară", vsLastMonth: "față de luna trecută", netMonthly: "Net lunar", threshold20: "Prag +20%",
     categoriesTitle: "Categorii", total: "Total", learnedWords: "Cuvinte învățate", customWords: "Cuvinte personalizate",
+    obNext: "Înainte", obSkip: "Sari peste", obStart: "Începe",
     newCategoryPh: "Categorie nouă…",
     recurringTitle: "Venituri și cheltuieli automate · salariu, alocație, abonamente…", recurringEmpty: "Nicio înregistrare recurentă setată.",
     weekly: "În fiecare săptămână", monthly: "În fiecare lună", yearly: "În fiecare an", lastRun: "ultima", notActiveYet: "încă inactivă",
@@ -497,6 +501,7 @@ const UI = {
     languageTitle: "Язык", themeTitle: "Цветовая тема", currencyTitle: "Валюта счёта",
     monthlyTrend: "Динамика по месяцам", vsLastMonth: "к прошлому месяцу", netMonthly: "Итог за месяц", threshold20: "Порог +20%",
     categoriesTitle: "Категории", total: "Всего", learnedWords: "Изученные слова", customWords: "Пользовательские слова",
+    obNext: "Далее", obSkip: "Пропустить", obStart: "Начать",
     newCategoryPh: "Новая категория…",
     recurringTitle: "Автоматические доходы и расходы · зарплата, пособия, подписки…", recurringEmpty: "Нет повторяющихся записей.",
     weekly: "Каждую неделю", monthly: "Каждый месяц", yearly: "Каждый год", lastRun: "последний раз", notActiveYet: "ещё не активна",
@@ -531,6 +536,7 @@ const UI = {
     languageTitle: "语言", themeTitle: "配色主题", currencyTitle: "账户货币",
     monthlyTrend: "月度趋势", vsLastMonth: "较上月", netMonthly: "月净额", threshold20: "+20% 阈值",
     categoriesTitle: "分类", total: "总计", learnedWords: "已学会的词", customWords: "自定义词汇",
+    obNext: "下一步", obSkip: "跳过", obStart: "开始使用",
     newCategoryPh: "新分类…",
     recurringTitle: "自动收支 · 工资、零花钱、订阅…", recurringEmpty: "还没有设置自动记录。",
     weekly: "每周", monthly: "每月", yearly: "每年", lastRun: "上次", notActiveYet: "尚未生效",
@@ -541,6 +547,47 @@ const UI = {
     deleteAccount: "删除此账户",
     scanning: "正在扫描小票…", errSave: "无法保存数据。", errAI: "无法连接 AI。",
   },
+};
+
+// ============================================================
+// Onboarding: brevi schermate mostrate solo al primissimo avvio
+// ============================================================
+const ONBOARDING_SLIDES = {
+  it: [
+    { icon: "⚡", title: "Benvenuto in Finbar", text: "Il tuo assistente per le finanze personali. Bastano pochi secondi per registrare ogni spesa o entrata." },
+    { icon: "💬", title: "Scrivi o parla", text: "Scrivi in chat \"speso 15 in cibo\" oppure usa il microfono: Finbar capisce il linguaggio naturale e registra da solo." },
+    { icon: "📷", title: "Scansiona gli scontrini", text: "Scatta una foto a uno scontrino: importo, negozio e categoria vengono letti automaticamente, con conferma prima di salvare." },
+    { icon: "🧠", title: "Insegnagli nuove parole", text: "Scrivi \"vinto=guadagno\" o \"bolletta=casa\" per insegnare a Finbar termini nuovi o dialettali, una volta per tutte." },
+    { icon: "🔑", title: "Conserva il tuo codice", text: "In Impostazioni trovi un codice di sincronizzazione unico: conservalo come una password, ti serve per ritrovare i tuoi dati su un altro dispositivo." },
+  ],
+  en: [
+    { icon: "⚡", title: "Welcome to Finbar", text: "Your personal finance assistant. A few seconds is all it takes to log any expense or income." },
+    { icon: "💬", title: "Type or talk", text: "Type \"spent 15 on food\" in chat, or use the microphone: Finbar understands natural language and logs it for you." },
+    { icon: "📷", title: "Scan your receipts", text: "Snap a photo of a receipt: amount, merchant and category are read automatically, with confirmation before saving." },
+    { icon: "🧠", title: "Teach it new words", text: "Type \"won=income\" or \"bill=home\" to teach Finbar new or regional terms, once and for good." },
+    { icon: "🔑", title: "Keep your code safe", text: "Settings has a unique sync code: keep it like a password, you'll need it to find your data on another device." },
+  ],
+  ro: [
+    { icon: "⚡", title: "Bine ai venit în Finbar", text: "Asistentul tău pentru finanțe personale. Câteva secunde sunt de ajuns pentru a înregistra orice cheltuială sau venit." },
+    { icon: "💬", title: "Scrie sau vorbește", text: "Scrie în chat \"am cheltuit 15 pe mâncare\" sau folosește microfonul: Finbar înțelege limbajul natural și înregistrează singur." },
+    { icon: "📷", title: "Scanează bonurile", text: "Fotografiază un bon: suma, magazinul și categoria sunt citite automat, cu confirmare înainte de salvare." },
+    { icon: "🧠", title: "Învață-l cuvinte noi", text: "Scrie \"am câștigat=venit\" sau \"factura=casa\" pentru a învăța Finbar termeni noi sau regionali, o singură dată." },
+    { icon: "🔑", title: "Păstrează-ți codul", text: "În Setări găsești un cod de sincronizare unic: păstrează-l ca pe o parolă, îți trebuie pentru a-ți regăsi datele pe alt dispozitiv." },
+  ],
+  ru: [
+    { icon: "⚡", title: "Добро пожаловать в Finbar", text: "Ваш помощник по личным финансам. Несколько секунд — и любой расход или доход записан." },
+    { icon: "💬", title: "Пишите или говорите", text: "Напишите в чате «потратил 15 на еду» или используйте микрофон: Finbar понимает естественный язык и сам всё запишет." },
+    { icon: "📷", title: "Сканируйте чеки", text: "Сфотографируйте чек: сумма, магазин и категория считываются автоматически, с подтверждением перед сохранением." },
+    { icon: "🧠", title: "Научите новым словам", text: "Напишите «выиграл=доход» или «счёт=дом», чтобы один раз научить Finbar новым или диалектным словам." },
+    { icon: "🔑", title: "Сохраните свой код", text: "В настройках есть уникальный код синхронизации: храните его как пароль — он нужен, чтобы найти данные на другом устройстве." },
+  ],
+  zh: [
+    { icon: "⚡", title: "欢迎使用 Finbar", text: "你的个人理财助手。只需几秒钟即可记录任何支出或收入。" },
+    { icon: "💬", title: "打字或说话", text: "在聊天中输入\"食品支出15\"，或使用麦克风：Finbar能理解自然语言并自动记录。" },
+    { icon: "📷", title: "扫描小票", text: "拍下小票照片：金额、商家和分类会被自动识别，保存前会先请你确认。" },
+    { icon: "🧠", title: "教它新词汇", text: "输入\"赢了=收入\"或\"账单=家庭\"，一次性教会 Finbar 新词或方言说法。" },
+    { icon: "🔑", title: "保管好你的代码", text: "设置中有一个唯一的同步代码：请像密码一样妥善保管，换设备找回数据时会用到。" },
+  ],
 };
 
 
@@ -757,6 +804,8 @@ export default function Finbar() {
   const [restoreError, setRestoreError] = useState(null);
   const [appLanguage, setAppLanguage] = useState("it");
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
 
   const scrollRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -770,12 +819,13 @@ export default function Finbar() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, th, c, sc, lg] = await Promise.allSettled([
+        const [a, th, c, sc, lg, ob] = await Promise.allSettled([
           window.storage.get(ACCOUNTS_KEY, false),
           window.storage.get(THEME_KEY, false),
           window.storage.get(CHAT_KEY, false),
           window.storage.get(SYNC_CODE_KEY, false),
           window.storage.get(LANGUAGE_KEY, false),
+          window.storage.get(ONBOARDING_KEY, false),
         ]);
         let accs = {};
         let active = null;
@@ -813,6 +863,10 @@ export default function Finbar() {
           () => setSyncStatus("synced"),
           () => setSyncStatus("error")
         );
+
+        // ---- onboarding: se non è mai stato visto, lo mostriamo al primo avvio ----
+        const onboardingSeen = ob.status === "fulfilled" && ob.value;
+        if (!onboardingSeen) setShowOnboarding(true);
       } catch {
         setShowNewAccount(true);
       } finally {
@@ -875,6 +929,11 @@ export default function Finbar() {
     setAppLanguage(lang);
     setShowLanguagePicker(false);
     try { await window.storage.set(LANGUAGE_KEY, lang, false); } catch {}
+  };
+  const finishOnboarding = async () => {
+    setShowOnboarding(false);
+    setOnboardingStep(0);
+    try { await window.storage.set(ONBOARDING_KEY, "1", false); } catch {}
   };
   const changeCurrency = (code) => {
     const acc = { ...account, currency: code };
@@ -1617,6 +1676,39 @@ export default function Finbar() {
           </div>
         </div>
       )}
+
+      {!showLanguagePicker && showOnboarding && (() => {
+        const slides = ONBOARDING_SLIDES[appLanguage] || ONBOARDING_SLIDES.it;
+        const slide = slides[onboardingStep];
+        const isLast = onboardingStep === slides.length - 1;
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,20,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30, padding: 24 }}>
+            <div style={{ background: t.modalBg, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: 24, width: "100%", maxWidth: 380, textAlign: "center" }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>{slide.icon}</div>
+              <h2 className="display" style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px", color: t.textStrong }}>{slide.title}</h2>
+              <div style={{ fontSize: 13, color: t.textMuted, lineHeight: 1.6, marginBottom: 20 }}>{slide.text}</div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 20 }}>
+                {slides.map((_, i) => (
+                  <div key={i} style={{ width: i === onboardingStep ? 18 : 6, height: 6, borderRadius: 3, background: i === onboardingStep ? t.accent : t.surfaceBorder, transition: "width 0.2s" }} />
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {!isLast && (
+                  <button onClick={finishOnboarding} style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: `1.5px solid ${t.surfaceBorder}`, background: "transparent", color: t.textMuted, fontSize: 13.5, fontWeight: 500, cursor: "pointer" }}>
+                    {ui.obSkip}
+                  </button>
+                )}
+                <button
+                  onClick={() => (isLast ? finishOnboarding() : setOnboardingStep((s) => s + 1))}
+                  style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "none", background: t.accent, color: t.onAccent, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
+                >
+                  {isLast ? ui.obStart : ui.obNext}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {showSettings && (
         <Modal onClose={() => setShowSettings(false)} title={ui.settingsTitle} t={t}>
