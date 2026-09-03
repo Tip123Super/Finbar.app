@@ -133,6 +133,7 @@ function newAccount(name, initialBalance, currencyCode) {
     categories: cats,
     recurring: [],
     learnedTerms: {}, // parole imparate dalle scelte manuali dell'utente: { parola: categoryId }
+    customTypeWords: {}, // parole insegnate esplicitamente dall'utente (es. "vinto=guadagno"): { parola: "entrata"|"spesa" }
     transactions: initialBalance
       ? [{ id: uid(), type: "init", amount: initialBalance, category: "Saldo iniziale", note: "", date: todayISO() }]
       : [],
@@ -293,6 +294,9 @@ const T = {
     savedTx: (label, amt, cat, cur) => `${label} registrata: ${currency(amt, cur)} · ${cat}`,
     placeholder: "Scrivi o parla…", listening: "Ti ascolto…", thinking: "sto pensando…",
     receiptRead: "📷 Scontrino letto", confirm: "Conferma",
+    wordTaughtType: (word, typeLabel) => `Fatto! D'ora in poi "${word}" lo tratterò come ${typeLabel.toLowerCase()}.`,
+    wordTaughtCategory: (word, catLabel) => `Fatto! D'ora in poi "${word}" lo collegherò alla categoria ${catLabel}.`,
+    wordTeachUnknown: (meaning) => `Non ho capito a cosa collegare "${meaning}". Prova con "entrata", "uscita" o il nome di una categoria esistente.`,
   },
   en: {
     expense: "Expense", income: "Income",
@@ -308,6 +312,9 @@ const T = {
     savedTx: (label, amt, cat, cur) => `${label} recorded: ${currency(amt, cur)} · ${cat}`,
     placeholder: "Type or speak…", listening: "Listening…", thinking: "thinking…",
     receiptRead: "📷 Receipt read", confirm: "Confirm",
+    wordTaughtType: (word, typeLabel) => `Got it! From now on I'll treat "${word}" as ${typeLabel.toLowerCase()}.`,
+    wordTaughtCategory: (word, catLabel) => `Got it! From now on I'll link "${word}" to the ${catLabel} category.`,
+    wordTeachUnknown: (meaning) => `I didn't understand what to link "${meaning}" to. Try "income", "expense" or an existing category name.`,
   },
   ro: {
     expense: "Cheltuială", income: "Venit",
@@ -323,6 +330,9 @@ const T = {
     savedTx: (label, amt, cat, cur) => `${label} înregistrată: ${currency(amt, cur)} · ${cat}`,
     placeholder: "Scrie sau vorbește…", listening: "Te ascult…", thinking: "mă gândesc…",
     receiptRead: "📷 Bon citit", confirm: "Confirmă",
+    wordTaughtType: (word, typeLabel) => `Am înțeles! De acum voi trata "${word}" ca ${typeLabel.toLowerCase()}.`,
+    wordTaughtCategory: (word, catLabel) => `Am înțeles! De acum voi asocia "${word}" cu categoria ${catLabel}.`,
+    wordTeachUnknown: (meaning) => `Nu am înțeles cu ce să asociez "${meaning}". Încearcă "venit", "cheltuială" sau numele unei categorii existente.`,
   },
   ru: {
     expense: "Расход", income: "Доход",
@@ -338,6 +348,9 @@ const T = {
     savedTx: (label, amt, cat, cur) => `${label} записан: ${currency(amt, cur)} · ${cat}`,
     placeholder: "Пишите или говорите…", listening: "Слушаю…", thinking: "думаю…",
     receiptRead: "📷 Чек прочитан", confirm: "Подтвердить",
+    wordTaughtType: (word, typeLabel) => `明白了！从现在起我会把"${word}"当作${typeLabel}处理。`,
+    wordTaughtCategory: (word, catLabel) => `明白了！从现在起我会把"${word}"关联到"${catLabel}"分类。`,
+    wordTeachUnknown: (meaning) => `我不明白该把"${meaning}"关联到什么。请尝试"收入"、"支出"或一个已有的分类名称。`,
   },
   zh: {
     expense: "支出", income: "收入",
@@ -381,7 +394,7 @@ const UI = {
     recoverBtn: "Recupera",
     languageTitle: "Lingua", themeTitle: "Tema colore", currencyTitle: "Valuta del conto",
     monthlyTrend: "Andamento mensile", vsLastMonth: "vs mese scorso", netMonthly: "Netto mensile", threshold20: "Soglia +20%",
-    categoriesTitle: "Categorie", total: "Totale", learnedWords: "Parole imparate",
+    categoriesTitle: "Categorie", total: "Totale", learnedWords: "Parole imparate", customWords: "Parole personalizzate",
     newCategoryPh: "Nuova categoria…",
     recurringTitle: "Entrate e uscite automatiche · stipendi, pagette, abbonamenti…", recurringEmpty: "Nessuna voce ricorrente impostata.",
     weekly: "Ogni settimana", monthly: "Ogni mese", yearly: "Ogni anno", lastRun: "ultima", notActiveYet: "non ancora attiva",
@@ -415,7 +428,7 @@ const UI = {
     recoverBtn: "Recover",
     languageTitle: "Language", themeTitle: "Color theme", currencyTitle: "Account currency",
     monthlyTrend: "Monthly trend", vsLastMonth: "vs last month", netMonthly: "Monthly net", threshold20: "+20% threshold",
-    categoriesTitle: "Categories", total: "Total", learnedWords: "Learned words",
+    categoriesTitle: "Categories", total: "Total", learnedWords: "Learned words", customWords: "Custom words",
     newCategoryPh: "New category…",
     recurringTitle: "Automatic income & expenses · salary, allowance, subscriptions…", recurringEmpty: "No recurring entries set.",
     weekly: "Every week", monthly: "Every month", yearly: "Every year", lastRun: "last", notActiveYet: "not active yet",
@@ -449,7 +462,7 @@ const UI = {
     recoverBtn: "Recuperează",
     languageTitle: "Limbă", themeTitle: "Temă de culoare", currencyTitle: "Moneda contului",
     monthlyTrend: "Evoluție lunară", vsLastMonth: "față de luna trecută", netMonthly: "Net lunar", threshold20: "Prag +20%",
-    categoriesTitle: "Categorii", total: "Total", learnedWords: "Cuvinte învățate",
+    categoriesTitle: "Categorii", total: "Total", learnedWords: "Cuvinte învățate", customWords: "Cuvinte personalizate",
     newCategoryPh: "Categorie nouă…",
     recurringTitle: "Venituri și cheltuieli automate · salariu, alocație, abonamente…", recurringEmpty: "Nicio înregistrare recurentă setată.",
     weekly: "În fiecare săptămână", monthly: "În fiecare lună", yearly: "În fiecare an", lastRun: "ultima", notActiveYet: "încă inactivă",
@@ -483,7 +496,7 @@ const UI = {
     recoverBtn: "Восстановить",
     languageTitle: "Язык", themeTitle: "Цветовая тема", currencyTitle: "Валюта счёта",
     monthlyTrend: "Динамика по месяцам", vsLastMonth: "к прошлому месяцу", netMonthly: "Итог за месяц", threshold20: "Порог +20%",
-    categoriesTitle: "Категории", total: "Всего", learnedWords: "Изученные слова",
+    categoriesTitle: "Категории", total: "Всего", learnedWords: "Изученные слова", customWords: "Пользовательские слова",
     newCategoryPh: "Новая категория…",
     recurringTitle: "Автоматические доходы и расходы · зарплата, пособия, подписки…", recurringEmpty: "Нет повторяющихся записей.",
     weekly: "Каждую неделю", monthly: "Каждый месяц", yearly: "Каждый год", lastRun: "последний раз", notActiveYet: "ещё не активна",
@@ -517,7 +530,7 @@ const UI = {
     recoverBtn: "恢复",
     languageTitle: "语言", themeTitle: "配色主题", currencyTitle: "账户货币",
     monthlyTrend: "月度趋势", vsLastMonth: "较上月", netMonthly: "月净额", threshold20: "+20% 阈值",
-    categoriesTitle: "分类", total: "总计", learnedWords: "已学会的词",
+    categoriesTitle: "分类", total: "总计", learnedWords: "已学会的词", customWords: "自定义词汇",
     newCategoryPh: "新分类…",
     recurringTitle: "自动收支 · 工资、零花钱、订阅…", recurringEmpty: "还没有设置自动记录。",
     weekly: "每周", monthly: "每月", yearly: "每年", lastRun: "上次", notActiveYet: "尚未生效",
@@ -539,11 +552,11 @@ const UI = {
 const NUM_REGEX = /(\d+(?:[.,]\d{1,2})?)/;
 
 const INCOME_WORDS = [
-  "guadagnat", "ricevut", "incassat", "stipendio", "entrata", "entrate", "aggiung", "deposit", "accredit", "reddito", "pagett",
-  "earned", "received", "income", "add", "added", "deposit", "credited", "salary", "paid me", "got paid", "allowance",
-  "castigat", "primit", "venit", "adaug", "salariu", "depus", "depune",
-  "заработал", "заработала", "получил", "получила", "доход", "добав", "депозит", "зарплата",
-  "赚了", "收到", "收入", "添加", "存入", "工资",
+  "guadagnat", "ricevut", "incassat", "stipendio", "entrata", "entrate", "aggiung", "deposit", "accredit", "reddito", "pagett", "vinto", "vinta",
+  "earned", "received", "income", "add", "added", "deposit", "credited", "salary", "paid me", "got paid", "allowance", "won", "i won",
+  "castigat", "primit", "venit", "adaug", "salariu", "depus", "depune", "am invins", "invins", "am castigat",
+  "заработал", "заработала", "получил", "получила", "доход", "добав", "депозит", "зарплата", "выиграл", "выиграла",
+  "赚了", "收到", "收入", "添加", "存入", "工资", "赢了",
 ];
 const EXPENSE_WORDS = [
   "spes", "pagat", "tolt", "togli", "rimuov", "sottra", "uscita", "uscite", "comprat", "acquistat", "costat",
@@ -585,6 +598,25 @@ function matchWholeWord(text, word) {
 }
 function matchAnyWhole(text, words) {
   return words.some((w) => matchWholeWord(text, normalizeText(w)));
+}
+// controlla se il testo contiene una delle parole insegnate esplicitamente dall'utente (es. "vinto" -> "entrata")
+function matchesCustomType(text, customTypeWords, type) {
+  if (!customTypeWords) return false;
+  return Object.entries(customTypeWords).some(([word, t]) => t === type && matchWholeWord(text, normalizeText(word)));
+}
+// riconosce comandi del tipo "parola = significato" (es. "vinto=guadagno") per insegnare nuove parole
+function parseTeachCommand(rawText) {
+  const m = rawText.match(/^\s*([^=]{1,40})=([^=]{1,60})\s*$/);
+  if (!m) return null;
+  const rawWord = m[1].trim();
+  const rawMeaning = m[2].trim();
+  if (!rawWord || !rawMeaning) return null;
+  const wordNorm = normalizeText(rawWord).trim();
+  const meaningNorm = normalizeText(rawMeaning).trim();
+  // la parola insegnata deve essere un termine semplice, senza numeri (max 3 parole)
+  if (!/^[a-z\u00e0-\u017e\u0400-\u04FF\u4e00-\u9fff\s]+$/.test(wordNorm)) return null;
+  if (wordNorm.split(/\s+/).length > 3) return null;
+  return { word: wordNorm, meaningNorm, meaningRaw: rawMeaning };
 }
 function detectCategory(text, categories, learnedTerms) {
   for (const [id, c] of Object.entries(categories)) {
@@ -686,8 +718,8 @@ function localParseMessage(rawText, account, lang) {
   if (!amount || amount <= 0) return { kind: "unrecognized" };
 
   let transactionType;
-  if (matchAny(text, INCOME_WORDS)) transactionType = "entrata";
-  else if (matchAny(text, EXPENSE_WORDS)) transactionType = "spesa";
+  if (matchAny(text, INCOME_WORDS) || matchesCustomType(text, account.customTypeWords, "entrata")) transactionType = "entrata";
+  else if (matchAny(text, EXPENSE_WORDS) || matchesCustomType(text, account.customTypeWords, "spesa")) transactionType = "spesa";
   else transactionType = "spesa"; // un importo "nudo" (es. "20 cibo") è quasi sempre una spesa
 
   const catId = detectCategory(text, account.categories, account.learnedTerms);
@@ -950,6 +982,11 @@ export default function Finbar() {
     delete next[word];
     persistAccounts({ ...accounts, [account.id]: { ...account, learnedTerms: next } }, activeId);
   };
+  const forgetCustomTypeWord = (word) => {
+    const next = { ...(account.customTypeWords || {}) };
+    delete next[word];
+    persistAccounts({ ...accounts, [account.id]: { ...account, customTypeWords: next } }, activeId);
+  };
 
   // ---- recurring income actions ----
   const addRecurring = (rule) => {
@@ -1035,6 +1072,42 @@ export default function Finbar() {
     const next = [...messages, userMsg];
     await persistChat(next);
     const tr = T[appLanguage] || T.it;
+
+    // ---- 0) comando "parola = significato" per insegnare nuove parole (es. "vinto=guadagno") ----
+    const teach = parseTeachCommand(text);
+    if (teach) {
+      const { word, meaningNorm, meaningRaw } = teach;
+      const incomeHints = ["entrata", "guadagno", "reddito", "income", "venit", "castig", "доход", "заработ", "收入", "赚"];
+      const expenseHints = ["spesa", "uscita", "expense", "cheltuial", "расход", "支出", "花"];
+      let updatedAcc = null;
+      let confirmMsg = null;
+
+      if (matchAny(meaningNorm, INCOME_WORDS) || incomeHints.some((h) => meaningNorm.includes(normalizeText(h)))) {
+        updatedAcc = { ...account, customTypeWords: { ...(account.customTypeWords || {}), [word]: "entrata" } };
+        confirmMsg = tr.wordTaughtType(word, tr.income);
+      } else if (matchAny(meaningNorm, EXPENSE_WORDS) || expenseHints.some((h) => meaningNorm.includes(normalizeText(h)))) {
+        updatedAcc = { ...account, customTypeWords: { ...(account.customTypeWords || {}), [word]: "spesa" } };
+        confirmMsg = tr.wordTaughtType(word, tr.expense);
+      } else {
+        const matchedCat = Object.entries(account.categories).find(([, c]) => {
+          const catNorm = normalizeText(c.label);
+          return meaningNorm.includes(catNorm) || catNorm.includes(meaningNorm);
+        });
+        if (matchedCat) {
+          const [catId, cat] = matchedCat;
+          updatedAcc = { ...account, learnedTerms: { ...(account.learnedTerms || {}), [word]: catId } };
+          confirmMsg = tr.wordTaughtCategory(word, cat.label);
+        }
+      }
+
+      if (updatedAcc) {
+        persistAccounts({ ...accounts, [updatedAcc.id]: updatedAcc }, activeId);
+        await persistChat([...next, { role: "assistant", content: confirmMsg, ts: Date.now(), accountId: activeId }]);
+      } else {
+        await persistChat([...next, { role: "assistant", content: tr.wordTeachUnknown(meaningRaw), ts: Date.now(), accountId: activeId }]);
+      }
+      return;
+    }
 
     // ---- 1) prova il parser locale: gratis, istantaneo, niente chiamata AI ----
     const local = localParseMessage(text, account, appLanguage);
@@ -1684,6 +1757,22 @@ export default function Finbar() {
                       <span key={word} style={{ display: "flex", alignItems: "center", gap: 6, background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 16, padding: "5px 6px 5px 10px", fontSize: 11.5, color: t.textPrimary }}>
                         "{word}" → {account.categories[catId]?.label || "—"}
                         <button onClick={() => forgetLearnedTerm(word)} className="icon-btn" aria-label="Forget" style={{ color: t.textMuted }}>
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {Object.keys(account.customTypeWords || {}).length > 0 && (
+                <>
+                  <div style={{ fontSize: 12, color: t.textMuted, margin: "18px 0 8px" }}>{ui.customWords}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    {Object.entries(account.customTypeWords || {}).map(([word, type]) => (
+                      <span key={word} style={{ display: "flex", alignItems: "center", gap: 6, background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 16, padding: "5px 6px 5px 10px", fontSize: 11.5, color: t.textPrimary }}>
+                        "{word}" → {type === "entrata" ? (T[appLanguage] || T.it).income : (T[appLanguage] || T.it).expense}
+                        <button onClick={() => forgetCustomTypeWord(word)} className="icon-btn" aria-label="Forget" style={{ color: t.textMuted }}>
                           <X size={12} />
                         </button>
                       </span>
