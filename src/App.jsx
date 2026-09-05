@@ -398,6 +398,8 @@ const UI = {
     categoriesTitle: "Categorie", total: "Totale", learnedWords: "Parole imparate", customWords: "Parole personalizzate",
     obNext: "Avanti", obSkip: "Salta", obStart: "Inizia",
     deleteConfirmTitle: "Eliminare questo conto?",     deleteConfirmWarning: "ATTENZIONE: eliminando questo conto verranno cancellati anche i dati salvati sul cloud collegati al tuo codice di sincronizzazione. Se è l'unico conto, il codice smetterà di funzionare per recuperare dati su altri dispositivi. L'operazione non si può annullare.",    deleteConfirmCancel: "Annulla", deleteConfirmBtn: "Elimina definitivamente",
+    updateAvailable: "Nuova versione disponibile", updateBtn: "Aggiorna ora",
+    saveCategoriesBtn: "Salva categorie", catErrorPrefix: "Impossibile completare l'operazione: le percentuali sommano al", catErrorSuffix: "%. Devono sommare esattamente al 100%.",
     newCategoryPh: "Nuova categoria…",
     recurringTitle: "Entrate e uscite automatiche · stipendi, pagette, abbonamenti…", recurringEmpty: "Nessuna voce ricorrente impostata.",
     weekly: "Ogni settimana", monthly: "Ogni mese", yearly: "Ogni anno", lastRun: "ultima", notActiveYet: "non ancora attiva",
@@ -434,6 +436,8 @@ const UI = {
     categoriesTitle: "Categories", total: "Total", learnedWords: "Learned words", customWords: "Custom words",
     obNext: "Next", obSkip: "Skip", obStart: "Get started",
     deleteConfirmTitle: "Delete this account?",     deleteConfirmWarning: "WARNING: deleting this account will also erase the cloud data linked to your sync code. If it's your only account, the code will stop working to recover data on other devices. This cannot be undone.",    deleteConfirmCancel: "Cancel", deleteConfirmBtn: "Delete permanently",
+    updateAvailable: "New version available", updateBtn: "Update now",
+    saveCategoriesBtn: "Save categories", catErrorPrefix: "Can't complete this: the percentages add up to", catErrorSuffix: "%. They must add up to exactly 100%.",
     newCategoryPh: "New category…",
     recurringTitle: "Automatic income & expenses · salary, allowance, subscriptions…", recurringEmpty: "No recurring entries set.",
     weekly: "Every week", monthly: "Every month", yearly: "Every year", lastRun: "last", notActiveYet: "not active yet",
@@ -470,6 +474,8 @@ const UI = {
     categoriesTitle: "Categorii", total: "Total", learnedWords: "Cuvinte învățate", customWords: "Cuvinte personalizate",
     obNext: "Înainte", obSkip: "Sari peste", obStart: "Începe",
     deleteConfirmTitle: "Ștergi acest cont?",     deleteConfirmWarning: "ATENȚIE: ștergând acest cont vor fi șterse și datele din cloud asociate codului tău de sincronizare. Dacă este singurul cont, codul nu va mai putea recupera date pe alte dispozitive. Operația nu poate fi anulată.",    deleteConfirmCancel: "Anulează", deleteConfirmBtn: "Șterge definitiv",
+    updateAvailable: "Versiune nouă disponibilă", updateBtn: "Actualizează acum",
+    saveCategoriesBtn: "Salvează categoriile", catErrorPrefix: "Operațiune imposibilă: procentele însumează", catErrorSuffix: "%. Trebuie să însumeze exact 100%.",
     newCategoryPh: "Categorie nouă…",
     recurringTitle: "Venituri și cheltuieli automate · salariu, alocație, abonamente…", recurringEmpty: "Nicio înregistrare recurentă setată.",
     weekly: "În fiecare săptămână", monthly: "În fiecare lună", yearly: "În fiecare an", lastRun: "ultima", notActiveYet: "încă inactivă",
@@ -506,6 +512,8 @@ const UI = {
     categoriesTitle: "Категории", total: "Всего", learnedWords: "Изученные слова", customWords: "Пользовательские слова",
     obNext: "Далее", obSkip: "Пропустить", obStart: "Начать",
     deleteConfirmTitle: "Удалить этот счёт?",     deleteConfirmWarning: "ВНИМАНИЕ: удаление этого счёта также сотрёт данные в облаке, связанные с вашим кодом синхронизации. Если это ваш единственный счёт, код перестанет восстанавливать данные на других устройствах. Действие необратимо.",    deleteConfirmCancel: "Отмена", deleteConfirmBtn: "Удалить окончательно",
+    updateAvailable: "Доступна новая версия", updateBtn: "Обновить сейчас",
+    saveCategoriesBtn: "Сохранить категории", catErrorPrefix: "Невозможно выполнить: сумма процентов составляет", catErrorSuffix: "%. Сумма должна быть ровно 100%.",
     newCategoryPh: "Новая категория…",
     recurringTitle: "Автоматические доходы и расходы · зарплата, пособия, подписки…", recurringEmpty: "Нет повторяющихся записей.",
     weekly: "Каждую неделю", monthly: "Каждый месяц", yearly: "Каждый год", lastRun: "последний раз", notActiveYet: "ещё не активна",
@@ -542,6 +550,8 @@ const UI = {
     categoriesTitle: "分类", total: "总计", learnedWords: "已学会的词", customWords: "自定义词汇",
     obNext: "下一步", obSkip: "跳过", obStart: "开始使用",
     deleteConfirmTitle: "删除此账户？",     deleteConfirmWarning: "警告：删除此账户还会清除与你的同步代码关联的云端数据。如果这是你唯一的账户，该代码将无法再在其他设备上恢复数据。此操作无法撤销。",    deleteConfirmCancel: "取消", deleteConfirmBtn: "永久删除",
+    updateAvailable: "有新版本可用", updateBtn: "立即更新",
+    saveCategoriesBtn: "保存分类", catErrorPrefix: "无法完成：百分比总和为", catErrorSuffix: "%。总和必须正好是100%。",
     newCategoryPh: "新分类…",
     recurringTitle: "自动收支 · 工资、零花钱、订阅…", recurringEmpty: "还没有设置自动记录。",
     weekly: "每周", monthly: "每月", yearly: "每年", lastRun: "上次", notActiveYet: "尚未生效",
@@ -812,6 +822,9 @@ export default function Finbar() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [catDraft, setCatDraft] = useState(null);
+  const [catSaveError, setCatSaveError] = useState(null);
 
   const scrollRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -902,6 +915,23 @@ export default function Finbar() {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, tab, pendingReceipt]);
+
+  useEffect(() => {
+    if (window.__finbarUpdateAvailable) setUpdateAvailable(true);
+    const onNeedRefresh = () => setUpdateAvailable(true);
+    window.addEventListener("finbar:need-refresh", onNeedRefresh);
+    return () => window.removeEventListener("finbar:need-refresh", onNeedRefresh);
+  }, []);
+  useEffect(() => {
+    if (showSettings && account) {
+      setCatDraft(JSON.parse(JSON.stringify(account.categories)));
+      setCatSaveError(null);
+    }
+  }, [showSettings, account?.id]);
+  const applyUpdate = () => {
+    if (window.__finbarUpdateSW) window.__finbarUpdateSW(true);
+    else window.location.reload();
+  };
 
   // ---- persistence ----
   const persistAccounts = async (accs, active) => {
@@ -1017,30 +1047,46 @@ export default function Finbar() {
     persistAccounts(next, remaining[0] || null);
     if (remaining.length === 0) setShowNewAccount(true);
   };
-  const updateCategoryPct = (catId, pct) => {
-    const acc = { ...account, categories: { ...account.categories, [catId]: { ...account.categories[catId], pct } } };
-    persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
+  const updateCategoryPctDraft = (catId, pct) => {
+    setCatDraft((d) => ({ ...d, [catId]: { ...d[catId], pct } }));
   };
   const CAT_COLORS = ["#F0B429", "#E85D4A", "#4E7FFF", "#B57EDC", "#00C2A8", "#2ECC71", "#8891A5", "#FF7A6B", "#4EC9FF", "#D4A94E"];
-  const addCategory = (label) => {
+  const addCategoryDraft = (label) => {
     const clean = label.trim();
-    if (!clean) return;
+    if (!clean || !catDraft) return;
     const id = clean.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + uid().slice(0, 4);
-    const usedColors = Object.values(account.categories).map((c) => c.color);
-    const color = CAT_COLORS.find((c) => !usedColors.includes(c)) || CAT_COLORS[Object.keys(account.categories).length % CAT_COLORS.length];
-    const acc = { ...account, categories: { ...account.categories, [id]: { label: clean, pct: 0, color, balance: 0 } } };
-    persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
+    const usedColors = Object.values(catDraft).map((c) => c.color);
+    const color = CAT_COLORS.find((c) => !usedColors.includes(c)) || CAT_COLORS[Object.keys(catDraft).length % CAT_COLORS.length];
+    setCatDraft((d) => ({ ...d, [id]: { label: clean, pct: 0, color, balance: 0 } }));
+    setCatSaveError(null);
   };
-  const deleteCategory = (id) => {
-    if (Object.keys(account.categories).length <= 1) return;
-    const cats = { ...account.categories };
-    delete cats[id];
-    const acc = { ...account, categories: cats };
-    persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
+  const deleteCategoryDraft = (id) => {
+    if (!catDraft || Object.keys(catDraft).length <= 1) return;
+    const next = { ...catDraft };
+    delete next[id];
+    setCatDraft(next);
+    setCatSaveError(null);
   };
-  const renameCategory = (id, label) => {
-    const acc = { ...account, categories: { ...account.categories, [id]: { ...account.categories[id], label } } };
+  const renameCategoryDraft = (id, label) => {
+    setCatDraft((d) => ({ ...d, [id]: { ...d[id], label } }));
+  };
+  // Salva le categorie SOLO se le percentuali sommano esattamente a 100%.
+  // Al salvataggio, ricalcola anche il saldo di ogni categoria in base alle nuove
+  // percentuali applicate al saldo totale del conto (correggendo eventuali scostamenti).
+  const saveCategoriesDraft = () => {
+    if (!catDraft) return;
+    const totalPct = Math.round(Object.values(catDraft).reduce((s, c) => s + (Number(c.pct) || 0), 0));
+    if (totalPct !== 100) {
+      setCatSaveError(`${ui.catErrorPrefix} ${totalPct}${ui.catErrorSuffix}`);
+      return;
+    }
+    const newCats = {};
+    Object.entries(catDraft).forEach(([id, c]) => {
+      newCats[id] = { ...c, label: c.label.trim() || c.label, balance: (account.totalBalance * (Number(c.pct) || 0)) / 100 };
+    });
+    const acc = { ...account, categories: newCats };
     persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
+    setCatSaveError(null);
   };
   const forgetLearnedTerm = (word) => {
     const next = { ...(account.learnedTerms || {}) };
@@ -1338,6 +1384,18 @@ export default function Finbar() {
         .in { animation: fadeUp 0.18s ease-out; }
         .tab-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; padding: 10px 0 6px; background: none; border: none; cursor: pointer; }
       `}</style>
+
+      {updateAvailable && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, display: "flex", justifyContent: "center", padding: "10px 12px", pointerEvents: "none" }}>
+          <div style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: 10, background: t.accent, color: t.onAccent, borderRadius: 12, padding: "9px 10px 9px 14px", fontSize: 12.5, fontWeight: 600, boxShadow: "0 4px 14px rgba(0,0,0,0.35)" }}>
+            <RefreshCw size={14} />
+            <span>{ui.updateAvailable}</span>
+            <button onClick={applyUpdate} style={{ background: "rgba(0,0,0,0.18)", border: "none", borderRadius: 8, padding: "6px 10px", color: t.onAccent, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {ui.updateBtn}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ===== Header ===== */}
       <div style={{ padding: "20px 18px 14px" }}>
@@ -1849,28 +1907,36 @@ export default function Finbar() {
               <div style={{ fontSize: 12, color: t.textMuted, margin: "4px 0 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>{ui.categoriesTitle} · {account.name}</span>
                 {(() => {
-                  const total = Math.round(Object.values(account.categories).reduce((s, c) => s + (c.pct || 0), 0));
+                  const total = Math.round(Object.values(catDraft || account.categories).reduce((s, c) => s + (Number(c.pct) || 0), 0));
                   return <span style={{ fontWeight: 700, color: total === 100 ? "#2ECC71" : "#F0B429" }}>{ui.total}: {total}%</span>;
                 })()}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
-                {Object.entries(account.categories).map(([id, c]) => (
+                {Object.entries(catDraft || account.categories).map(([id, c]) => (
                   <div key={id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.color, flexShrink: 0 }} />
                     <input
                       value={c.label}
-                      onChange={(e) => renameCategory(id, e.target.value)}
+                      onChange={(e) => renameCategoryDraft(id, e.target.value)}
                       style={{ flex: 1, background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 6, padding: "6px 8px", color: t.textStrong, fontSize: 12.5 }}
                     />
-                    <input type="number" min="0" max="100" value={c.pct} onChange={(e) => updateCategoryPct(id, parseFloat(e.target.value) || 0)} style={{ width: 52, background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 6, padding: "6px 6px", color: t.textStrong, fontSize: 12.5, textAlign: "right" }} />
+                    <input type="number" min="0" max="100" value={c.pct} onChange={(e) => updateCategoryPctDraft(id, parseFloat(e.target.value) || 0)} style={{ width: 52, background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 6, padding: "6px 6px", color: t.textStrong, fontSize: 12.5, textAlign: "right" }} />
                     <span style={{ fontSize: 11, color: t.textMuted }}>%</span>
-                    <button onClick={() => deleteCategory(id)} className="icon-btn" aria-label="Delete category" style={{ color: t.textMuted }}>
+                    <button onClick={() => deleteCategoryDraft(id)} className="icon-btn" aria-label="Delete category" style={{ color: t.textMuted }}>
                       <Trash2 size={13} />
                     </button>
                   </div>
                 ))}
               </div>
-              <AddCategoryRow accent={t.accent} t={t} onAdd={addCategory} ui={ui} />
+              <AddCategoryRow accent={t.accent} t={t} onAdd={addCategoryDraft} ui={ui} />
+              {catSaveError && (
+                <div style={{ fontSize: 12, color: "#FF7A6B", background: "rgba(255,122,107,0.08)", border: "1px solid #4A2A2A", borderRadius: 8, padding: "8px 10px", marginTop: 10 }}>
+                  {catSaveError}
+                </div>
+              )}
+              <button onClick={saveCategoriesDraft} style={{ width: "100%", padding: "11px 0", borderRadius: 10, border: "none", background: t.accent, color: t.onAccent, fontSize: 13, fontWeight: 700, cursor: "pointer", marginTop: 10 }}>
+                {ui.saveCategoriesBtn}
+              </button>
 
               {Object.keys(account.learnedTerms || {}).length > 0 && (
                 <>
