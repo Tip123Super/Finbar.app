@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, Trash2, Wallet, Send, Mic, MicOff, Camera, X, Check, ArrowLeftRight,
-  Settings, MessageCircle, LayoutGrid, History, ChevronDown, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages,
+  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
@@ -400,6 +400,7 @@ const UI = {
     deleteConfirmTitle: "Eliminare questo conto?",     deleteConfirmWarning: "ATTENZIONE: eliminando questo conto verranno cancellati anche i dati salvati sul cloud collegati al tuo codice di sincronizzazione. Se è l'unico conto, il codice smetterà di funzionare per recuperare dati su altri dispositivi. L'operazione non si può annullare.",    deleteConfirmCancel: "Annulla", deleteConfirmBtn: "Elimina definitivamente",
     updateAvailable: "Nuova versione disponibile", updateBtn: "Aggiorna ora",
     saveCategoriesBtn: "Salva categorie", catErrorPrefix: "Impossibile completare l'operazione: le percentuali sommano al", catErrorSuffix: "%. Devono sommare esattamente al 100%.",
+    recurringMenuShort: "Entrate/uscite automatiche", settingsMenuHint: "Tocca una sezione per aprirla",
     newCategoryPh: "Nuova categoria…",
     recurringTitle: "Entrate e uscite automatiche · stipendi, pagette, abbonamenti…", recurringEmpty: "Nessuna voce ricorrente impostata.",
     weekly: "Ogni settimana", monthly: "Ogni mese", yearly: "Ogni anno", lastRun: "ultima", notActiveYet: "non ancora attiva",
@@ -438,6 +439,7 @@ const UI = {
     deleteConfirmTitle: "Delete this account?",     deleteConfirmWarning: "WARNING: deleting this account will also erase the cloud data linked to your sync code. If it's your only account, the code will stop working to recover data on other devices. This cannot be undone.",    deleteConfirmCancel: "Cancel", deleteConfirmBtn: "Delete permanently",
     updateAvailable: "New version available", updateBtn: "Update now",
     saveCategoriesBtn: "Save categories", catErrorPrefix: "Can't complete this: the percentages add up to", catErrorSuffix: "%. They must add up to exactly 100%.",
+    recurringMenuShort: "Automatic income & expenses", settingsMenuHint: "Tap a section to open it",
     newCategoryPh: "New category…",
     recurringTitle: "Automatic income & expenses · salary, allowance, subscriptions…", recurringEmpty: "No recurring entries set.",
     weekly: "Every week", monthly: "Every month", yearly: "Every year", lastRun: "last", notActiveYet: "not active yet",
@@ -476,6 +478,7 @@ const UI = {
     deleteConfirmTitle: "Ștergi acest cont?",     deleteConfirmWarning: "ATENȚIE: ștergând acest cont vor fi șterse și datele din cloud asociate codului tău de sincronizare. Dacă este singurul cont, codul nu va mai putea recupera date pe alte dispozitive. Operația nu poate fi anulată.",    deleteConfirmCancel: "Anulează", deleteConfirmBtn: "Șterge definitiv",
     updateAvailable: "Versiune nouă disponibilă", updateBtn: "Actualizează acum",
     saveCategoriesBtn: "Salvează categoriile", catErrorPrefix: "Operațiune imposibilă: procentele însumează", catErrorSuffix: "%. Trebuie să însumeze exact 100%.",
+    recurringMenuShort: "Venituri/cheltuieli automate", settingsMenuHint: "Atinge o secțiune pentru a o deschide",
     newCategoryPh: "Categorie nouă…",
     recurringTitle: "Venituri și cheltuieli automate · salariu, alocație, abonamente…", recurringEmpty: "Nicio înregistrare recurentă setată.",
     weekly: "În fiecare săptămână", monthly: "În fiecare lună", yearly: "În fiecare an", lastRun: "ultima", notActiveYet: "încă inactivă",
@@ -514,6 +517,7 @@ const UI = {
     deleteConfirmTitle: "Удалить этот счёт?",     deleteConfirmWarning: "ВНИМАНИЕ: удаление этого счёта также сотрёт данные в облаке, связанные с вашим кодом синхронизации. Если это ваш единственный счёт, код перестанет восстанавливать данные на других устройствах. Действие необратимо.",    deleteConfirmCancel: "Отмена", deleteConfirmBtn: "Удалить окончательно",
     updateAvailable: "Доступна новая версия", updateBtn: "Обновить сейчас",
     saveCategoriesBtn: "Сохранить категории", catErrorPrefix: "Невозможно выполнить: сумма процентов составляет", catErrorSuffix: "%. Сумма должна быть ровно 100%.",
+    recurringMenuShort: "Автоматические доходы и расходы", settingsMenuHint: "Нажмите на раздел, чтобы открыть его",
     newCategoryPh: "Новая категория…",
     recurringTitle: "Автоматические доходы и расходы · зарплата, пособия, подписки…", recurringEmpty: "Нет повторяющихся записей.",
     weekly: "Каждую неделю", monthly: "Каждый месяц", yearly: "Каждый год", lastRun: "последний раз", notActiveYet: "ещё не активна",
@@ -552,6 +556,7 @@ const UI = {
     deleteConfirmTitle: "删除此账户？",     deleteConfirmWarning: "警告：删除此账户还会清除与你的同步代码关联的云端数据。如果这是你唯一的账户，该代码将无法再在其他设备上恢复数据。此操作无法撤销。",    deleteConfirmCancel: "取消", deleteConfirmBtn: "永久删除",
     updateAvailable: "有新版本可用", updateBtn: "立即更新",
     saveCategoriesBtn: "保存分类", catErrorPrefix: "无法完成：百分比总和为", catErrorSuffix: "%。总和必须正好是100%。",
+    recurringMenuShort: "自动收支", settingsMenuHint: "点击某个部分即可打开",
     newCategoryPh: "新分类…",
     recurringTitle: "自动收支 · 工资、零花钱、订阅…", recurringEmpty: "还没有设置自动记录。",
     weekly: "每周", monthly: "每月", yearly: "每年", lastRun: "上次", notActiveYet: "尚未生效",
@@ -825,6 +830,8 @@ export default function Finbar() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [catDraft, setCatDraft] = useState(null);
   const [catSaveError, setCatSaveError] = useState(null);
+  const [settingsSection, setSettingsSection] = useState(null);
+  const [highlightedCatId, setHighlightedCatId] = useState(null);
 
   const scrollRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -927,6 +934,7 @@ export default function Finbar() {
       setCatDraft(JSON.parse(JSON.stringify(account.categories)));
       setCatSaveError(null);
     }
+    if (showSettings) setSettingsSection(null);
   }, [showSettings, account?.id]);
   const applyUpdate = () => {
     if (window.__finbarUpdateSW) window.__finbarUpdateSW(true);
@@ -1317,7 +1325,7 @@ export default function Finbar() {
 
   const pieData = useMemo(() => {
     if (!account) return [];
-    return Object.values(account.categories).map((c) => ({ name: c.label, value: Math.max(0, c.balance), color: c.color }));
+    return Object.entries(account.categories).map(([id, c]) => ({ id, name: c.label, value: Math.max(0, c.balance), color: c.color }));
   }, [account]);
 
   const trendData = useMemo(() => {
@@ -1473,14 +1481,31 @@ export default function Finbar() {
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={pieData} dataKey="value" innerRadius={32} outerRadius={52} paddingAngle={3}>
-                            {pieData.map((d, i) => <Cell key={i} fill={d.color} stroke="none" />)}
+                            {pieData.map((d, i) => (
+                              <Cell
+                                key={i}
+                                fill={d.color}
+                                stroke="none"
+                                style={{ cursor: "pointer", outline: "none" }}
+                                onClick={() => setHighlightedCatId((prev) => (prev === d.id ? null : d.id))}
+                              />
+                            ))}
                           </Pie>
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
                       {Object.entries(account.categories).map(([id, c]) => (
-                        <div key={id} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5 }}>
+                        <div
+                          key={id}
+                          onClick={() => setHighlightedCatId((prev) => (prev === id ? null : id))}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 7, fontSize: 12.5,
+                            padding: "4px 7px", borderRadius: 8, cursor: "pointer",
+                            border: `1.5px solid ${highlightedCatId === id ? c.color : "transparent"}`,
+                            transition: "border-color 0.15s",
+                          }}
+                        >
                           <div style={{ width: 7, height: 7, borderRadius: "50%", background: c.color, flexShrink: 0 }} />
                           <span style={{ flex: 1, color: t.textPrimary }}>{c.label}</span>
                           <span className="num" style={{ color: t.textMuted }}>{currency(c.balance, account.currency)}</span>
@@ -1800,112 +1825,163 @@ export default function Finbar() {
       )}
 
       {showSettings && (
-        <Modal onClose={() => setShowSettings(false)} title={ui.settingsTitle} t={t}>
-          <div style={{ fontSize: 12, color: t.textMuted, margin: "4px 0 10px", display: "flex", alignItems: "center", gap: 6 }}><KeyRound size={13} /> {ui.syncCodeTitle}</div>
-          <div style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 12, padding: 14, marginBottom: 10 }}>
-            <div style={{ fontSize: 11.5, color: t.textMuted, marginBottom: 8, lineHeight: 1.5 }}>
-              {ui.syncCodeDesc}
+        <Modal
+          onClose={() => setShowSettings(false)}
+          onBack={settingsSection ? () => setSettingsSection(null) : undefined}
+          title={
+            settingsSection === "sync" ? ui.syncCodeTitle :
+            settingsSection === "language" ? ui.languageTitle :
+            settingsSection === "theme" ? ui.themeTitle :
+            settingsSection === "currency" ? ui.currencyTitle :
+            settingsSection === "trend" ? ui.monthlyTrend :
+            settingsSection === "categories" ? ui.categoriesTitle :
+            settingsSection === "recurring" ? ui.recurringMenuShort :
+            ui.settingsTitle
+          }
+          t={t}
+        >
+          {settingsSection === null && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontSize: 11.5, color: t.textMuted, margin: "0 2px 4px" }}>{ui.settingsMenuHint}</div>
+              {[
+                { key: "sync", label: ui.syncCodeTitle, icon: KeyRound },
+                { key: "language", label: ui.languageTitle, icon: Languages },
+                { key: "theme", label: ui.themeTitle, icon: Palette },
+                ...(account ? [{ key: "currency", label: ui.currencyTitle, icon: Wallet }] : []),
+                ...(account && monthlyData.length > 0 ? [{ key: "trend", label: ui.monthlyTrend, icon: TrendingUp }] : []),
+                ...(account ? [{ key: "categories", label: ui.categoriesTitle, icon: Tag }] : []),
+                ...(account ? [{ key: "recurring", label: ui.recurringMenuShort, icon: Repeat }] : []),
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setSettingsSection(item.key)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "13px 12px", borderRadius: 12, border: `1px solid ${t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}
+                >
+                  <item.icon size={16} color={t.textMuted} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, textAlign: "left", fontSize: 13.5, color: t.textStrong, fontWeight: 600 }}>{item.label}</span>
+                  <ChevronRight size={16} color={t.textMuted} />
+                </button>
+              ))}
+              {account && (
+                <button onClick={() => setConfirmDeleteAccount(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "13px 12px", borderRadius: 12, border: "1.5px solid #4A2A2A", background: "transparent", color: "#FF7A6B", cursor: "pointer", marginTop: 6 }}>
+                  <Trash2 size={16} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, textAlign: "left", fontSize: 13.5, fontWeight: 600 }}>{ui.deleteAccount}</span>
+                </button>
+              )}
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                ref={codeInputRef}
-                readOnly
-                value={syncCode || "…"}
-                onFocus={(e) => e.target.select()}
-                className="num"
-                style={{ flex: 1, background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "10px 12px", fontSize: 13.5, letterSpacing: "0.03em", color: t.textStrong }}
-              />
-              <button onClick={copySyncCode} className="icon-btn" aria-label="Copy code" style={{ width: 40, height: 40, borderRadius: 8, background: copied ? "#2ECC71" : t.surfaceAlt, border: `1px solid ${t.surfaceAltBorder}`, flexShrink: 0, color: copied ? t.onAccent : t.textPrimary }}>
-                {copied ? <Check size={16} /> : <Copy size={16} />}
-              </button>
-            </div>
-            <div style={{ fontSize: 10.5, color: "#576073", marginTop: 6 }}>{ui.copyFallback}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 11, color: syncStatus === "error" ? "#FF7A6B" : syncStatus === "syncing" ? "#F0B429" : t.textMuted }}>
-              {syncStatus === "syncing" ? <RefreshCw size={11} /> : <Cloud size={11} />}
-              {syncStatus === "synced" && ui.syncedLabel}
-              {syncStatus === "syncing" && ui.syncingLabel}
-              {syncStatus === "error" && ui.syncErrorLabel}
-              {syncStatus === "idle" && ui.syncIdleLabel}
-            </div>
-          </div>
+          )}
 
-          <div style={{ background: t.surfaceRow, border: `1.5px dashed ${t.surfaceAltBorder}`, borderRadius: 12, padding: 14, marginBottom: 20 }}>
-            <div style={{ fontSize: 11.5, color: t.textMuted, marginBottom: 8 }}>{ui.haveCodeOtherDevice}</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                value={restoreInput}
-                onChange={(e) => setRestoreInput(e.target.value)}
-                placeholder="FNX-XXXX-XXXX-XXXX"
-                style={{ flex: 1, background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "9px 11px", color: t.textStrong, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }}
-              />
-              <button onClick={restoreFromCode} disabled={restoring || !restoreInput.trim()} style={{ background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "0 16px", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
-                {restoring ? "…" : ui.recoverBtn}
-              </button>
-            </div>
-            {restoreError && <div style={{ color: "#FF7A6B", fontSize: 11.5, marginTop: 6 }}>{restoreError}</div>}
-          </div>
-
-          <div style={{ fontSize: 12, color: t.textMuted, margin: "4px 0 10px", display: "flex", alignItems: "center", gap: 6 }}><Languages size={13} /> {ui.languageTitle}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
-            {Object.entries(LANGUAGES).map(([key, name]) => (
-              <button key={key} onClick={() => changeLanguage(key)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${appLanguage === key ? t.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}>
-                <span style={{ fontSize: 12.5, color: appLanguage === key ? t.accent : t.textStrong }}>{name}</span>
-              </button>
-            ))}
-          </div>
-
-          <div style={{ fontSize: 12, color: t.textMuted, margin: "4px 0 10px", display: "flex", alignItems: "center", gap: 6 }}><Palette size={13} /> {ui.themeTitle}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
-            {Object.entries(THEMES).map(([key, th]) => (
-              <button key={key} onClick={() => changeTheme(key)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${themeKey === key ? th.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}>
-                <div style={{ width: 16, height: 16, borderRadius: "50%", background: th.accent }} />
-                <span style={{ fontSize: 12.5, color: t.textStrong }}>{th.name}</span>
-              </button>
-            ))}
-          </div>
-
-          {account && (
+          {settingsSection === "sync" && (
             <>
-              <div style={{ fontSize: 12, color: t.textMuted, margin: "4px 0 10px", display: "flex", alignItems: "center", gap: 6 }}><Wallet size={13} /> {ui.currencyTitle} · {account.name}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
-                {Object.entries(CURRENCIES).map(([code, c]) => (
-                  <button key={code} onClick={() => changeCurrency(code)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${(account.currency || "EUR") === code ? t.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}>
-                    <span style={{ fontSize: 12.5, color: (account.currency || "EUR") === code ? t.accent : t.textStrong }}>{c.label}</span>
+              <div style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                <div style={{ fontSize: 11.5, color: t.textMuted, marginBottom: 8, lineHeight: 1.5 }}>
+                  {ui.syncCodeDesc}
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    ref={codeInputRef}
+                    readOnly
+                    value={syncCode || "…"}
+                    onFocus={(e) => e.target.select()}
+                    className="num"
+                    style={{ flex: 1, background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "10px 12px", fontSize: 13.5, letterSpacing: "0.03em", color: t.textStrong }}
+                  />
+                  <button onClick={copySyncCode} className="icon-btn" aria-label="Copy code" style={{ width: 40, height: 40, borderRadius: 8, background: copied ? "#2ECC71" : t.surfaceAlt, border: `1px solid ${t.surfaceAltBorder}`, flexShrink: 0, color: copied ? t.onAccent : t.textPrimary }}>
+                    {copied ? <Check size={16} /> : <Copy size={16} />}
                   </button>
-                ))}
+                </div>
+                <div style={{ fontSize: 10.5, color: "#576073", marginTop: 6 }}>{ui.copyFallback}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 11, color: syncStatus === "error" ? "#FF7A6B" : syncStatus === "syncing" ? "#F0B429" : t.textMuted }}>
+                  {syncStatus === "syncing" ? <RefreshCw size={11} /> : <Cloud size={11} />}
+                  {syncStatus === "synced" && ui.syncedLabel}
+                  {syncStatus === "syncing" && ui.syncingLabel}
+                  {syncStatus === "error" && ui.syncErrorLabel}
+                  {syncStatus === "idle" && ui.syncIdleLabel}
+                </div>
               </div>
 
-              {monthlyData.length > 0 && (
-                <>
-                  <div style={{ fontSize: 12, color: t.textMuted, margin: "4px 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span>{ui.monthlyTrend} · {account.name}</span>
-                    {monthlyChange !== null && (
-                      <span style={{ color: monthlyChange >= 20 ? "#2ECC71" : monthlyChange >= 0 ? "#F0B429" : "#FF7A6B", fontWeight: 700 }}>
-                        {monthlyChange >= 0 ? "+" : ""}{monthlyChange}% {ui.vsLastMonth}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 14, padding: "14px 10px 6px", marginBottom: 20, height: 160 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={monthlyData} margin={{ top: 4, right: 10, left: -18, bottom: 0 }}>
-                        <CartesianGrid stroke={t.modalBorder} strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="month" tick={{ fill: t.textMuted, fontSize: 10 }} axisLine={{ stroke: t.modalBorder }} tickLine={false} />
-                        <YAxis tick={{ fill: t.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, fontSize: 12 }} formatter={(v) => currency(v, account.currency)} />
-                        <Line type="monotone" dataKey="net" stroke={t.accent} strokeWidth={2.5} dot={{ r: 3, fill: t.accent }} name={ui.netMonthly} />
-                        <Line type="monotone" dataKey="target" stroke={t.accent2} strokeWidth={1.5} strokeDasharray="5 4" dot={false} name={ui.threshold20} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div style={{ display: "flex", gap: 14, marginBottom: 20, fontSize: 11, color: t.textMuted }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 12, height: 2, background: t.accent }} /> {ui.netMonthly}</span>
-                    <span style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 12, height: 2, background: t.accent2, opacity: 0.7 }} /> {ui.threshold20}</span>
-                  </div>
-                </>
-              )}
+              <div style={{ background: t.surfaceRow, border: `1.5px dashed ${t.surfaceAltBorder}`, borderRadius: 12, padding: 14 }}>
+                <div style={{ fontSize: 11.5, color: t.textMuted, marginBottom: 8 }}>{ui.haveCodeOtherDevice}</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    value={restoreInput}
+                    onChange={(e) => setRestoreInput(e.target.value)}
+                    placeholder="FNX-XXXX-XXXX-XXXX"
+                    style={{ flex: 1, background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "9px 11px", color: t.textStrong, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }}
+                  />
+                  <button onClick={restoreFromCode} disabled={restoring || !restoreInput.trim()} style={{ background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "0 16px", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+                    {restoring ? "…" : ui.recoverBtn}
+                  </button>
+                </div>
+                {restoreError && <div style={{ color: "#FF7A6B", fontSize: 11.5, marginTop: 6 }}>{restoreError}</div>}
+              </div>
+            </>
+          )}
 
-              <div style={{ fontSize: 12, color: t.textMuted, margin: "4px 0 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>{ui.categoriesTitle} · {account.name}</span>
+          {settingsSection === "language" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {Object.entries(LANGUAGES).map(([key, name]) => (
+                <button key={key} onClick={() => changeLanguage(key)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${appLanguage === key ? t.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}>
+                  <span style={{ fontSize: 12.5, color: appLanguage === key ? t.accent : t.textStrong }}>{name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {settingsSection === "theme" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {Object.entries(THEMES).map(([key, th]) => (
+                <button key={key} onClick={() => changeTheme(key)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${themeKey === key ? th.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}>
+                  <div style={{ width: 16, height: 16, borderRadius: "50%", background: th.accent }} />
+                  <span style={{ fontSize: 12.5, color: t.textStrong }}>{th.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {settingsSection === "currency" && account && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {Object.entries(CURRENCIES).map(([code, c]) => (
+                <button key={code} onClick={() => changeCurrency(code)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${(account.currency || "EUR") === code ? t.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}>
+                  <span style={{ fontSize: 12.5, color: (account.currency || "EUR") === code ? t.accent : t.textStrong }}>{c.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {settingsSection === "trend" && account && monthlyData.length > 0 && (
+            <>
+              <div style={{ fontSize: 12, color: t.textMuted, margin: "0 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span>{account.name}</span>
+                {monthlyChange !== null && (
+                  <span style={{ color: monthlyChange >= 20 ? "#2ECC71" : monthlyChange >= 0 ? "#F0B429" : "#FF7A6B", fontWeight: 700 }}>
+                    {monthlyChange >= 0 ? "+" : ""}{monthlyChange}% {ui.vsLastMonth}
+                  </span>
+                )}
+              </div>
+              <div style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 14, padding: "14px 10px 6px", marginBottom: 14, height: 160 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={monthlyData} margin={{ top: 4, right: 10, left: -18, bottom: 0 }}>
+                    <CartesianGrid stroke={t.modalBorder} strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fill: t.textMuted, fontSize: 10 }} axisLine={{ stroke: t.modalBorder }} tickLine={false} />
+                    <YAxis tick={{ fill: t.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, fontSize: 12 }} formatter={(v) => currency(v, account.currency)} />
+                    <Line type="monotone" dataKey="net" stroke={t.accent} strokeWidth={2.5} dot={{ r: 3, fill: t.accent }} name={ui.netMonthly} />
+                    <Line type="monotone" dataKey="target" stroke={t.accent2} strokeWidth={1.5} strokeDasharray="5 4" dot={false} name={ui.threshold20} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{ display: "flex", gap: 14, fontSize: 11, color: t.textMuted }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 12, height: 2, background: t.accent }} /> {ui.netMonthly}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 12, height: 2, background: t.accent2, opacity: 0.7 }} /> {ui.threshold20}</span>
+              </div>
+            </>
+          )}
+
+          {settingsSection === "categories" && account && (
+            <>
+              <div style={{ fontSize: 12, color: t.textMuted, margin: "0 0 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>{account.name}</span>
                 {(() => {
                   const total = Math.round(Object.values(catDraft || account.categories).reduce((s, c) => s + (Number(c.pct) || 0), 0));
                   return <span style={{ fontWeight: 700, color: total === 100 ? "#2ECC71" : "#F0B429" }}>{ui.total}: {total}%</span>;
@@ -1969,8 +2045,12 @@ export default function Finbar() {
                   </div>
                 </>
               )}
+            </>
+          )}
 
-              <div style={{ fontSize: 12, color: t.textMuted, margin: "18px 0 10px" }}>{ui.recurringTitle}</div>
+          {settingsSection === "recurring" && account && (
+            <>
+              <div style={{ fontSize: 11.5, color: t.textMuted, marginBottom: 12 }}>{ui.recurringTitle}</div>
               {(account.recurring || []).length === 0 && (
                 <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10 }}>{ui.recurringEmpty}</div>
               )}
@@ -1997,10 +2077,6 @@ export default function Finbar() {
                 })}
               </div>
               <RecurringForm accent={t.accent} t={t} categories={account.categories} onAdd={addRecurring} ui={ui} />
-
-              <button onClick={() => setConfirmDeleteAccount(true)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "none", border: "1.5px solid #4A2A2A", borderRadius: 10, padding: "11px 0", color: "#FF7A6B", fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 20 }}>
-                <Trash2 size={14} /> {ui.deleteAccount}
-              </button>
             </>
           )}
         </Modal>
@@ -2009,12 +2085,19 @@ export default function Finbar() {
   );
 }
 
-function Modal({ onClose, title, children, t }) {
+function Modal({ onClose, onBack, title, children, t }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,20,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 20 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: t.modalBg, width: "100%", maxWidth: 480, borderRadius: "18px 18px 0 0", padding: "18px 18px 26px", maxHeight: "85vh", overflowY: "auto", border: `1px solid ${t.modalBorder}`, borderBottom: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h2 className="display" style={{ fontSize: 17, fontWeight: 700, margin: 0, color: t.textStrong }}>{title}</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {onBack && (
+              <button onClick={onBack} className="icon-btn" aria-label="Back" style={{ color: t.textMuted, marginLeft: -6 }}>
+                <ChevronLeft size={20} />
+              </button>
+            )}
+            <h2 className="display" style={{ fontSize: 17, fontWeight: 700, margin: 0, color: t.textStrong }}>{title}</h2>
+          </div>
           <button onClick={onClose} className="icon-btn" style={{ color: t.textMuted }}><X size={19} /></button>
         </div>
         {children}
