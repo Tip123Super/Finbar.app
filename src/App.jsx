@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, Trash2, Wallet, Send, Mic, MicOff, Camera, X, Check, ArrowLeftRight,
-  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat,
+  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
+import { LEGAL_TEXT } from "./legalText";
 
 // Icona "tre fulmini" per l'header: un fulmine grande al centro affiancato da due più piccoli, stessa forma ripetuta in scala diversa.
 function LightningIcon({ size = 18, color = "currentColor" }) {
@@ -24,6 +25,7 @@ const CHAT_KEY = "finex:chat";
 const SYNC_CODE_KEY = "finex:sync-code";
 const LANGUAGE_KEY = "finex:language";
 const ONBOARDING_KEY = "finex:onboarding-seen";
+const LEGAL_ACCEPTED_KEY = "finex:legal-accepted";
 
 // ---- Supabase: sincronizzazione tra dispositivi tramite codice ----
 const SUPABASE_URL = "https://vhlneufpkwzbuapwlmap.supabase.co";
@@ -401,6 +403,7 @@ const UI = {
     updateAvailable: "Nuova versione disponibile", updateBtn: "Aggiorna ora",
     saveCategoriesBtn: "Salva categorie", catErrorPrefix: "Impossibile completare l'operazione: le percentuali sommano al", catErrorSuffix: "%. Devono sommare esattamente al 100%.",
     recurringMenuShort: "Entrate/uscite automatiche", settingsMenuHint: "Tocca una sezione per aprirla",
+    legalMenuLabel: "Privacy e Termini", legalTabPrivacy: "Privacy", legalTabTerms: "Termini", legalCheckboxLabel: "Ho letto e accetto la Privacy Policy e i Termini di Utilizzo", legalContinueBtn: "Continua", legalCourtesyNote: "Traduzione di cortesia — fa fede la versione in italiano.",
     newCategoryPh: "Nuova categoria…",
     recurringTitle: "Entrate e uscite automatiche · stipendi, pagette, abbonamenti…", recurringEmpty: "Nessuna voce ricorrente impostata.",
     weekly: "Ogni settimana", monthly: "Ogni mese", yearly: "Ogni anno", lastRun: "ultima", notActiveYet: "non ancora attiva",
@@ -440,6 +443,7 @@ const UI = {
     updateAvailable: "New version available", updateBtn: "Update now",
     saveCategoriesBtn: "Save categories", catErrorPrefix: "Can't complete this: the percentages add up to", catErrorSuffix: "%. They must add up to exactly 100%.",
     recurringMenuShort: "Automatic income & expenses", settingsMenuHint: "Tap a section to open it",
+    legalMenuLabel: "Privacy & Terms", legalTabPrivacy: "Privacy", legalTabTerms: "Terms", legalCheckboxLabel: "I have read and accept the Privacy Policy and Terms of Use", legalContinueBtn: "Continue", legalCourtesyNote: "Courtesy translation — the Italian version is authoritative.",
     newCategoryPh: "New category…",
     recurringTitle: "Automatic income & expenses · salary, allowance, subscriptions…", recurringEmpty: "No recurring entries set.",
     weekly: "Every week", monthly: "Every month", yearly: "Every year", lastRun: "last", notActiveYet: "not active yet",
@@ -479,6 +483,7 @@ const UI = {
     updateAvailable: "Versiune nouă disponibilă", updateBtn: "Actualizează acum",
     saveCategoriesBtn: "Salvează categoriile", catErrorPrefix: "Operațiune imposibilă: procentele însumează", catErrorSuffix: "%. Trebuie să însumeze exact 100%.",
     recurringMenuShort: "Venituri/cheltuieli automate", settingsMenuHint: "Atinge o secțiune pentru a o deschide",
+    legalMenuLabel: "Confidențialitate și Termeni", legalTabPrivacy: "Confidențialitate", legalTabTerms: "Termeni", legalCheckboxLabel: "Am citit și accept Politica de Confidențialitate și Termenii de Utilizare", legalContinueBtn: "Continuă", legalCourtesyNote: "Traducere de curtoazie — versiunea în italiană este de referință.",
     newCategoryPh: "Categorie nouă…",
     recurringTitle: "Venituri și cheltuieli automate · salariu, alocație, abonamente…", recurringEmpty: "Nicio înregistrare recurentă setată.",
     weekly: "În fiecare săptămână", monthly: "În fiecare lună", yearly: "În fiecare an", lastRun: "ultima", notActiveYet: "încă inactivă",
@@ -518,6 +523,7 @@ const UI = {
     updateAvailable: "Доступна новая версия", updateBtn: "Обновить сейчас",
     saveCategoriesBtn: "Сохранить категории", catErrorPrefix: "Невозможно выполнить: сумма процентов составляет", catErrorSuffix: "%. Сумма должна быть ровно 100%.",
     recurringMenuShort: "Автоматические доходы и расходы", settingsMenuHint: "Нажмите на раздел, чтобы открыть его",
+    legalMenuLabel: "Конфиденциальность и Условия", legalTabPrivacy: "Конфиденциальность", legalTabTerms: "Условия", legalCheckboxLabel: "Я прочитал(а) и принимаю Политику конфиденциальности и Условия использования", legalContinueBtn: "Продолжить", legalCourtesyNote: "Перевод для удобства — официальной является итальянская версия.",
     newCategoryPh: "Новая категория…",
     recurringTitle: "Автоматические доходы и расходы · зарплата, пособия, подписки…", recurringEmpty: "Нет повторяющихся записей.",
     weekly: "Каждую неделю", monthly: "Каждый месяц", yearly: "Каждый год", lastRun: "последний раз", notActiveYet: "ещё не активна",
@@ -557,6 +563,7 @@ const UI = {
     updateAvailable: "有新版本可用", updateBtn: "立即更新",
     saveCategoriesBtn: "保存分类", catErrorPrefix: "无法完成：百分比总和为", catErrorSuffix: "%。总和必须正好是100%。",
     recurringMenuShort: "自动收支", settingsMenuHint: "点击某个部分即可打开",
+    legalMenuLabel: "隐私与条款", legalTabPrivacy: "隐私政策", legalTabTerms: "使用条款", legalCheckboxLabel: "我已阅读并接受隐私政策和使用条款", legalContinueBtn: "继续", legalCourtesyNote: "礼节性翻译——以意大利文版本为准。",
     newCategoryPh: "新分类…",
     recurringTitle: "自动收支 · 工资、零花钱、订阅…", recurringEmpty: "还没有设置自动记录。",
     weekly: "每周", monthly: "每月", yearly: "每年", lastRun: "上次", notActiveYet: "尚未生效",
@@ -826,6 +833,11 @@ export default function Finbar() {
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [showLegalGate, setShowLegalGate] = useState(false);
+  const [legalGateTab, setLegalGateTab] = useState("privacy");
+  const [legalGateChecked, setLegalGateChecked] = useState(false);
+  const [settingsLegalTab, setSettingsLegalTab] = useState("privacy");
+  const onboardingSeenRef = useRef(false);
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [catDraft, setCatDraft] = useState(null);
@@ -845,13 +857,14 @@ export default function Finbar() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, th, c, sc, lg, ob] = await Promise.allSettled([
+        const [a, th, c, sc, lg, ob, la] = await Promise.allSettled([
           window.storage.get(ACCOUNTS_KEY, false),
           window.storage.get(THEME_KEY, false),
           window.storage.get(CHAT_KEY, false),
           window.storage.get(SYNC_CODE_KEY, false),
           window.storage.get(LANGUAGE_KEY, false),
           window.storage.get(ONBOARDING_KEY, false),
+          window.storage.get(LEGAL_ACCEPTED_KEY, false),
         ]);
         let accs = {};
         let active = null;
@@ -890,9 +903,15 @@ export default function Finbar() {
           () => setSyncStatus("error")
         );
 
-        // ---- onboarding: se non è mai stato visto, lo mostriamo al primo avvio ----
+        // ---- privacy/termini e onboarding: mostrati solo al primissimo avvio, in quest'ordine ----
         const onboardingSeen = ob.status === "fulfilled" && ob.value;
-        if (!onboardingSeen) setShowOnboarding(true);
+        const legalAccepted = la.status === "fulfilled" && la.value;
+        onboardingSeenRef.current = !!onboardingSeen;
+        if (!legalAccepted) {
+          setShowLegalGate(true);
+        } else if (!onboardingSeen) {
+          setShowOnboarding(true);
+        }
       } catch {
         setShowNewAccount(true);
       } finally {
@@ -977,7 +996,14 @@ export default function Finbar() {
   const finishOnboarding = async () => {
     setShowOnboarding(false);
     setOnboardingStep(0);
+    onboardingSeenRef.current = true;
     try { await window.storage.set(ONBOARDING_KEY, "1", false); } catch {}
+  };
+  const acceptLegal = async () => {
+    setShowLegalGate(false);
+    setLegalGateChecked(false);
+    try { await window.storage.set(LEGAL_ACCEPTED_KEY, "1", false); } catch {}
+    if (!onboardingSeenRef.current) setShowOnboarding(true);
   };
   const changeCurrency = (code) => {
     const acc = { ...account, currency: code };
@@ -1766,7 +1792,51 @@ export default function Finbar() {
         </div>
       )}
 
-      {!showLanguagePicker && showOnboarding && (() => {
+      {!showLanguagePicker && showLegalGate && (() => {
+        const legal = LEGAL_TEXT[appLanguage] || LEGAL_TEXT.it;
+        const sections = legalGateTab === "privacy" ? legal.privacy : legal.terms;
+        const sectionTitle = legalGateTab === "privacy" ? legal.privacyTitle : legal.termsTitle;
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,20,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30, padding: 18 }}>
+            <div style={{ background: t.modalBg, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: 20, width: "100%", maxWidth: 440, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12, flexShrink: 0 }}>
+                <button onClick={() => setLegalGateTab("privacy")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${legalGateTab === "privacy" ? t.accent : t.surfaceBorder}`, background: legalGateTab === "privacy" ? t.surfaceRow : "transparent", color: legalGateTab === "privacy" ? t.accent : t.textMuted, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                  {ui.legalTabPrivacy}
+                </button>
+                <button onClick={() => setLegalGateTab("terms")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${legalGateTab === "terms" ? t.accent : t.surfaceBorder}`, background: legalGateTab === "terms" ? t.surfaceRow : "transparent", color: legalGateTab === "terms" ? t.accent : t.textMuted, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                  {ui.legalTabTerms}
+                </button>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", paddingRight: 4, marginBottom: 12 }}>
+                <h2 className="display" style={{ fontSize: 15, fontWeight: 700, margin: "0 0 4px", color: t.textStrong }}>{sectionTitle}</h2>
+                <div style={{ fontSize: 10.5, color: t.textMuted, marginBottom: legal.note ? 4 : 12 }}>{legal.updated}</div>
+                {legal.note && <div style={{ fontSize: 10.5, color: "#F0B429", marginBottom: 12, fontStyle: "italic" }}>{legal.note}</div>}
+                {sections.map((s, i) => (
+                  <div key={i} style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: t.textStrong, marginBottom: 5 }}>{s.h}</div>
+                    {s.p.map((para, j) => (
+                      <div key={j} style={{ fontSize: 11.5, color: t.textPrimary, lineHeight: 1.6, marginBottom: 6 }}>{para}</div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 11.5, color: t.textPrimary, marginBottom: 12, cursor: "pointer", flexShrink: 0 }}>
+                <input type="checkbox" checked={legalGateChecked} onChange={(e) => setLegalGateChecked(e.target.checked)} style={{ marginTop: 2, flexShrink: 0 }} />
+                <span>{ui.legalCheckboxLabel}</span>
+              </label>
+              <button
+                onClick={acceptLegal}
+                disabled={!legalGateChecked}
+                style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: legalGateChecked ? t.accent : t.surfaceBorder, color: legalGateChecked ? t.onAccent : t.textMuted, fontSize: 13.5, fontWeight: 700, cursor: legalGateChecked ? "pointer" : "not-allowed", flexShrink: 0 }}
+              >
+                {ui.legalContinueBtn}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {!showLanguagePicker && !showLegalGate && showOnboarding && (() => {
         const slides = ONBOARDING_SLIDES[appLanguage] || ONBOARDING_SLIDES.it;
         const slide = slides[onboardingStep];
         const isLast = onboardingStep === slides.length - 1;
@@ -1836,6 +1906,7 @@ export default function Finbar() {
             settingsSection === "trend" ? ui.monthlyTrend :
             settingsSection === "categories" ? ui.categoriesTitle :
             settingsSection === "recurring" ? ui.recurringMenuShort :
+            settingsSection === "legal" ? ui.legalMenuLabel :
             ui.settingsTitle
           }
           t={t}
@@ -1851,6 +1922,7 @@ export default function Finbar() {
                 ...(account && monthlyData.length > 0 ? [{ key: "trend", label: ui.monthlyTrend, icon: TrendingUp }] : []),
                 ...(account ? [{ key: "categories", label: ui.categoriesTitle, icon: Tag }] : []),
                 ...(account ? [{ key: "recurring", label: ui.recurringMenuShort, icon: Repeat }] : []),
+                { key: "legal", label: ui.legalMenuLabel, icon: Shield },
               ].map((item) => (
                 <button
                   key={item.key}
@@ -2079,6 +2151,35 @@ export default function Finbar() {
               <RecurringForm accent={t.accent} t={t} categories={account.categories} onAdd={addRecurring} ui={ui} />
             </>
           )}
+
+          {settingsSection === "legal" && (() => {
+            const legal = LEGAL_TEXT[appLanguage] || LEGAL_TEXT.it;
+            const sections = settingsLegalTab === "privacy" ? legal.privacy : legal.terms;
+            const sectionTitle = settingsLegalTab === "privacy" ? legal.privacyTitle : legal.termsTitle;
+            return (
+              <>
+                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                  <button onClick={() => setSettingsLegalTab("privacy")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${settingsLegalTab === "privacy" ? t.accent : t.surfaceBorder}`, background: settingsLegalTab === "privacy" ? t.surfaceRow : "transparent", color: settingsLegalTab === "privacy" ? t.accent : t.textMuted, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                    {ui.legalTabPrivacy}
+                  </button>
+                  <button onClick={() => setSettingsLegalTab("terms")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${settingsLegalTab === "terms" ? t.accent : t.surfaceBorder}`, background: settingsLegalTab === "terms" ? t.surfaceRow : "transparent", color: settingsLegalTab === "terms" ? t.accent : t.textMuted, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                    {ui.legalTabTerms}
+                  </button>
+                </div>
+                <h2 className="display" style={{ fontSize: 15, fontWeight: 700, margin: "0 0 4px", color: t.textStrong }}>{sectionTitle}</h2>
+                <div style={{ fontSize: 10.5, color: t.textMuted, marginBottom: legal.note ? 4 : 12 }}>{legal.updated}</div>
+                {legal.note && <div style={{ fontSize: 10.5, color: "#F0B429", marginBottom: 12, fontStyle: "italic" }}>{legal.note}</div>}
+                {sections.map((s, i) => (
+                  <div key={i} style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: t.textStrong, marginBottom: 5 }}>{s.h}</div>
+                    {s.p.map((para, j) => (
+                      <div key={j} style={{ fontSize: 11.5, color: t.textPrimary, lineHeight: 1.6, marginBottom: 6 }}>{para}</div>
+                    ))}
+                  </div>
+                ))}
+              </>
+            );
+          })()}
         </Modal>
       )}
     </div>
