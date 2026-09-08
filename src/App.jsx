@@ -960,7 +960,9 @@ export default function Finbar() {
       setCatDraft(JSON.parse(JSON.stringify(account.categories)));
       setCatSaveError(null);
     }
-    if (showSettings) setSettingsSection(null);
+    // non resettare alla schermata menu se è il tour guidato ad aver aperto le Impostazioni
+    // su una sezione precisa (altrimenti la sezione target sparisce un istante dopo essere apparsa)
+    if (showSettings && tourStep === null) setSettingsSection(null);
   }, [showSettings, account?.id]);
   const applyUpdate = () => {
     if (window.__finbarUpdateSW) window.__finbarUpdateSW(true);
