@@ -24,7 +24,6 @@ const THEME_KEY = "finex:theme";
 const CHAT_KEY = "finex:chat";
 const SYNC_CODE_KEY = "finex:sync-code";
 const LANGUAGE_KEY = "finex:language";
-const ONBOARDING_KEY = "finex:onboarding-seen";
 const LEGAL_ACCEPTED_KEY = "finex:legal-accepted";
 
 // ---- Supabase: sincronizzazione tra dispositivi tramite codice ----
@@ -577,43 +576,50 @@ const UI = {
 };
 
 // ============================================================
-// Onboarding: brevi schermate mostrate solo al primissimo avvio
+// Tour guidato: mostrato ad ogni creazione di un conto (nuovo o aggiuntivo).
+// Ogni step "punta" a un elemento reale dello schermo (vedi TOUR_TARGETS in
+// App per la mappatura target -> ref/schermata).
 // ============================================================
-const ONBOARDING_SLIDES = {
+const TOUR_STEPS = {
   it: [
-    { icon: "⚡", title: "Benvenuto in Finbar", text: "Il tuo assistente per le finanze personali. Bastano pochi secondi per registrare ogni spesa o entrata." },
-    { icon: "💬", title: "Scrivi o parla", text: "Scrivi in chat \"speso 15 in cibo\" oppure usa il microfono: Finbar capisce il linguaggio naturale e registra da solo." },
-    { icon: "📷", title: "Scansiona gli scontrini", text: "Scatta una foto a uno scontrino: importo, negozio e categoria vengono letti automaticamente, con conferma prima di salvare." },
-    { icon: "🧠", title: "Insegnagli nuove parole", text: "Scrivi \"vinto=guadagno\" o \"bolletta=casa\" per insegnare a Finbar termini nuovi o dialettali, una volta per tutte." },
-    { icon: "🔑", title: "Conserva il tuo codice", text: "In Impostazioni trovi un codice di sincronizzazione unico: conservalo come una password, ti serve per ritrovare i tuoi dati su un altro dispositivo." },
+    { target: "balance", title: "Il tuo saldo", text: "Qui vedi quanto hai in totale su questo conto, aggiornato automaticamente ad ogni transazione." },
+    { target: "pie", title: "Spese per categoria", text: "Questo grafico mostra come si dividono le tue spese tra le varie categorie. Tocca una fetta per evidenziarla." },
+    { target: "sync", title: "Codice di sincronizzazione", text: "Conservalo con cura, come una password: ti serve per ritrovare i tuoi dati su un altro dispositivo. Chi lo conosce può leggerli e modificarli." },
+    { target: "pct", title: "Percentuali per categoria", text: "Ogni categoria ha una percentuale del saldo totale, e devono sempre sommare a 100%. Puoi modificarle qui in qualsiasi momento e salvare con l'apposito pulsante." },
+    { target: "chat", title: "Scrivi le tue spese", text: "Scrivi qui in linguaggio naturale (es. \"speso 15 in cibo\") oppure usa il microfono: ci pensa Finbar a registrare tutto da solo." },
+    { target: "history", title: "Storico", text: "Qui trovi tutte le entrate e le uscite che hai registrato, in ordine cronologico." },
   ],
   en: [
-    { icon: "⚡", title: "Welcome to Finbar", text: "Your personal finance assistant. A few seconds is all it takes to log any expense or income." },
-    { icon: "💬", title: "Type or talk", text: "Type \"spent 15 on food\" in chat, or use the microphone: Finbar understands natural language and logs it for you." },
-    { icon: "📷", title: "Scan your receipts", text: "Snap a photo of a receipt: amount, merchant and category are read automatically, with confirmation before saving." },
-    { icon: "🧠", title: "Teach it new words", text: "Type \"won=income\" or \"bill=home\" to teach Finbar new or regional terms, once and for good." },
-    { icon: "🔑", title: "Keep your code safe", text: "Settings has a unique sync code: keep it like a password, you'll need it to find your data on another device." },
+    { target: "balance", title: "Your balance", text: "Here you see your total for this account, updated automatically with every transaction." },
+    { target: "pie", title: "Spending by category", text: "This chart shows how your expenses are split across categories. Tap a slice to highlight it." },
+    { target: "sync", title: "Sync code", text: "Keep it safe, like a password: you'll need it to find your data on another device. Anyone who knows it can read and change it." },
+    { target: "pct", title: "Category percentages", text: "Each category has a percentage of the total balance, and they must always add up to 100%. You can edit them here anytime and save with the dedicated button." },
+    { target: "chat", title: "Log your expenses", text: "Type here in natural language (e.g. \"spent 15 on food\") or use the microphone: Finbar takes care of the rest." },
+    { target: "history", title: "History", text: "Here you'll find every income and expense you've logged, in chronological order." },
   ],
   ro: [
-    { icon: "⚡", title: "Bine ai venit în Finbar", text: "Asistentul tău pentru finanțe personale. Câteva secunde sunt de ajuns pentru a înregistra orice cheltuială sau venit." },
-    { icon: "💬", title: "Scrie sau vorbește", text: "Scrie în chat \"am cheltuit 15 pe mâncare\" sau folosește microfonul: Finbar înțelege limbajul natural și înregistrează singur." },
-    { icon: "📷", title: "Scanează bonurile", text: "Fotografiază un bon: suma, magazinul și categoria sunt citite automat, cu confirmare înainte de salvare." },
-    { icon: "🧠", title: "Învață-l cuvinte noi", text: "Scrie \"am câștigat=venit\" sau \"factura=casa\" pentru a învăța Finbar termeni noi sau regionali, o singură dată." },
-    { icon: "🔑", title: "Păstrează-ți codul", text: "În Setări găsești un cod de sincronizare unic: păstrează-l ca pe o parolă, îți trebuie pentru a-ți regăsi datele pe alt dispozitiv." },
+    { target: "balance", title: "Soldul tău", text: "Aici vezi totalul acestui cont, actualizat automat la fiecare tranzacție." },
+    { target: "pie", title: "Cheltuieli pe categorii", text: "Acest grafic arată cum se împart cheltuielile pe categorii. Atinge o felie pentru a o evidenția." },
+    { target: "sync", title: "Codul de sincronizare", text: "Păstrează-l cu grijă, ca pe o parolă: îți trebuie pentru a-ți regăsi datele pe alt dispozitiv. Oricine îl cunoaște le poate citi și modifica." },
+    { target: "pct", title: "Procentele categoriilor", text: "Fiecare categorie are un procent din soldul total, iar acestea trebuie să însumeze mereu 100%. Le poți modifica aici oricând și salva cu butonul dedicat." },
+    { target: "chat", title: "Înregistrează-ți cheltuielile", text: "Scrie aici în limbaj natural (ex. \"am cheltuit 15 pe mâncare\") sau folosește microfonul: Finbar se ocupă de restul." },
+    { target: "history", title: "Istoric", text: "Aici găsești toate veniturile și cheltuielile înregistrate, în ordine cronologică." },
   ],
   ru: [
-    { icon: "⚡", title: "Добро пожаловать в Finbar", text: "Ваш помощник по личным финансам. Несколько секунд — и любой расход или доход записан." },
-    { icon: "💬", title: "Пишите или говорите", text: "Напишите в чате «потратил 15 на еду» или используйте микрофон: Finbar понимает естественный язык и сам всё запишет." },
-    { icon: "📷", title: "Сканируйте чеки", text: "Сфотографируйте чек: сумма, магазин и категория считываются автоматически, с подтверждением перед сохранением." },
-    { icon: "🧠", title: "Научите новым словам", text: "Напишите «выиграл=доход» или «счёт=дом», чтобы один раз научить Finbar новым или диалектным словам." },
-    { icon: "🔑", title: "Сохраните свой код", text: "В настройках есть уникальный код синхронизации: храните его как пароль — он нужен, чтобы найти данные на другом устройстве." },
+    { target: "balance", title: "Ваш баланс", text: "Здесь вы видите общую сумму по этому счёту, автоматически обновляемую при каждой транзакции." },
+    { target: "pie", title: "Расходы по категориям", text: "Эта диаграмма показывает, как распределяются ваши расходы по категориям. Нажмите на сектор, чтобы выделить его." },
+    { target: "sync", title: "Код синхронизации", text: "Храните его как пароль: он нужен, чтобы найти ваши данные на другом устройстве. Любой, кто его знает, может их читать и изменять." },
+    { target: "pct", title: "Проценты категорий", text: "У каждой категории есть процент от общего баланса, и в сумме они всегда должны составлять 100%. Их можно изменить здесь в любой момент и сохранить соответствующей кнопкой." },
+    { target: "chat", title: "Записывайте расходы", text: "Пишите здесь обычным языком (например, «потратил 15 на еду») или используйте микрофон: Finbar сделает всё остальное." },
+    { target: "history", title: "История", text: "Здесь вы найдёте все записанные доходы и расходы в хронологическом порядке." },
   ],
   zh: [
-    { icon: "⚡", title: "欢迎使用 Finbar", text: "你的个人理财助手。只需几秒钟即可记录任何支出或收入。" },
-    { icon: "💬", title: "打字或说话", text: "在聊天中输入\"食品支出15\"，或使用麦克风：Finbar能理解自然语言并自动记录。" },
-    { icon: "📷", title: "扫描小票", text: "拍下小票照片：金额、商家和分类会被自动识别，保存前会先请你确认。" },
-    { icon: "🧠", title: "教它新词汇", text: "输入\"赢了=收入\"或\"账单=家庭\"，一次性教会 Finbar 新词或方言说法。" },
-    { icon: "🔑", title: "保管好你的代码", text: "设置中有一个唯一的同步代码：请像密码一样妥善保管，换设备找回数据时会用到。" },
+    { target: "balance", title: "你的余额", text: "在这里可以看到该账户的总额，每次交易后会自动更新。" },
+    { target: "pie", title: "按分类查看支出", text: "此图表显示你的支出如何按分类划分。点击某个扇形即可高亮显示。" },
+    { target: "sync", title: "同步代码", text: "请像保管密码一样保管好它：换设备找回数据时会用到。任何知道它的人都能读取和修改数据。" },
+    { target: "pct", title: "分类百分比", text: "每个分类都占总余额的一定百分比，总和必须始终为100%。你可以随时在这里修改，并用专门的按钮保存。" },
+    { target: "chat", title: "记录你的支出", text: "用自然语言在这里输入（例如「食品支出15」），或使用麦克风：剩下的交给 Finbar。" },
+    { target: "history", title: "历史记录", text: "这里按时间顺序列出你记录的所有收入和支出。" },
   ],
 };
 
@@ -831,13 +837,18 @@ export default function Finbar() {
   const [restoreError, setRestoreError] = useState(null);
   const [appLanguage, setAppLanguage] = useState("it");
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(0);
   const [showLegalGate, setShowLegalGate] = useState(false);
   const [legalGateTab, setLegalGateTab] = useState("privacy");
+  const [tourStep, setTourStep] = useState(null); // null = tour non attivo
+  const [tourRect, setTourRect] = useState(null);
+  const tourBalanceRef = useRef(null);
+  const tourPieRef = useRef(null);
+  const tourCategoriesRef = useRef(null);
+  const tourChatInputRef = useRef(null);
+  const tourHistoryRef = useRef(null);
   const [legalGateChecked, setLegalGateChecked] = useState(false);
   const [settingsLegalTab, setSettingsLegalTab] = useState("privacy");
-  const onboardingSeenRef = useRef(false);
+  // (rimosso: onboardingSeenRef, non più necessario — il tour riparte ad ogni creazione di conto)
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [catDraft, setCatDraft] = useState(null);
@@ -857,13 +868,12 @@ export default function Finbar() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, th, c, sc, lg, ob, la] = await Promise.allSettled([
+        const [a, th, c, sc, lg, la] = await Promise.allSettled([
           window.storage.get(ACCOUNTS_KEY, false),
           window.storage.get(THEME_KEY, false),
           window.storage.get(CHAT_KEY, false),
           window.storage.get(SYNC_CODE_KEY, false),
           window.storage.get(LANGUAGE_KEY, false),
-          window.storage.get(ONBOARDING_KEY, false),
           window.storage.get(LEGAL_ACCEPTED_KEY, false),
         ]);
         let accs = {};
@@ -903,14 +913,11 @@ export default function Finbar() {
           () => setSyncStatus("error")
         );
 
-        // ---- privacy/termini e onboarding: mostrati solo al primissimo avvio, in quest'ordine ----
-        const onboardingSeen = ob.status === "fulfilled" && ob.value;
+        // ---- privacy/termini: mostrati solo finché non vengono accettati (il tour guidato
+        // parte invece ad ogni creazione di conto, vedi createAccount) ----
         const legalAccepted = la.status === "fulfilled" && la.value;
-        onboardingSeenRef.current = !!onboardingSeen;
         if (!legalAccepted) {
           setShowLegalGate(true);
-        } else if (!onboardingSeen) {
-          setShowOnboarding(true);
         }
       } catch {
         setShowNewAccount(true);
@@ -993,18 +1000,81 @@ export default function Finbar() {
     setShowLanguagePicker(false);
     try { await window.storage.set(LANGUAGE_KEY, lang, false); } catch {}
   };
-  const finishOnboarding = async () => {
-    setShowOnboarding(false);
-    setOnboardingStep(0);
-    onboardingSeenRef.current = true;
-    try { await window.storage.set(ONBOARDING_KEY, "1", false); } catch {}
-  };
   const acceptLegal = async () => {
     setShowLegalGate(false);
     setLegalGateChecked(false);
     try { await window.storage.set(LEGAL_ACCEPTED_KEY, "1", false); } catch {}
-    if (!onboardingSeenRef.current) setShowOnboarding(true);
   };
+  // ---- tour guidato: parte ad ogni creazione di conto (nuovo o aggiuntivo) ----
+  const getTourRef = (target) => ({
+    balance: tourBalanceRef,
+    pie: tourPieRef,
+    sync: codeInputRef,
+    pct: tourCategoriesRef,
+    chat: tourChatInputRef,
+    history: tourHistoryRef,
+  }[target]);
+  const activateTourStep = (index) => {
+    const steps = TOUR_STEPS[appLanguage] || TOUR_STEPS.it;
+    const step = steps[index];
+    if (!step) return;
+    if (step.target === "balance" || step.target === "pie") {
+      setShowSettings(false);
+      setTab("dash");
+    } else if (step.target === "sync") {
+      setShowSettings(true);
+      setSettingsSection("sync");
+    } else if (step.target === "pct") {
+      setShowSettings(true);
+      setSettingsSection("categories");
+    } else if (step.target === "chat") {
+      setShowSettings(false);
+      setTab("chat");
+    } else if (step.target === "history") {
+      setShowSettings(false);
+      setTab("history");
+    }
+  };
+  const startTour = () => {
+    setTourStep(0);
+    activateTourStep(0);
+  };
+  const tourNext = () => {
+    const steps = TOUR_STEPS[appLanguage] || TOUR_STEPS.it;
+    setTourStep((s) => {
+      const next = (s ?? -1) + 1;
+      if (next >= steps.length) {
+        setTourRect(null);
+        return null;
+      }
+      activateTourStep(next);
+      return next;
+    });
+  };
+  const tourSkip = () => {
+    setTourStep(null);
+    setTourRect(null);
+    setShowSettings(false);
+  };
+  useEffect(() => {
+    if (tourStep === null) return;
+    const steps = TOUR_STEPS[appLanguage] || TOUR_STEPS.it;
+    const step = steps[tourStep];
+    if (!step) return;
+    const measure = () => {
+      const ref = getTourRef(step.target);
+      if (ref && ref.current) {
+        setTourRect(ref.current.getBoundingClientRect());
+      } else {
+        // l'elemento non esiste in questo momento (es. nessuna categoria con saldo > 0 da mostrare): salta lo step
+        tourNext();
+      }
+    };
+    const t1 = setTimeout(measure, 80);
+    window.addEventListener("resize", measure);
+    return () => { clearTimeout(t1); window.removeEventListener("resize", measure); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourStep, appLanguage, tab, showSettings, settingsSection]);
   const changeCurrency = (code) => {
     const acc = { ...account, currency: code };
     persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
@@ -1073,6 +1143,7 @@ export default function Finbar() {
     const next = { ...accounts, [acc.id]: acc };
     persistAccounts(next, acc.id);
     setShowNewAccount(false);
+    startTour();
   };
   const deleteAccount = (id) => {
     const next = { ...accounts };
@@ -1468,7 +1539,7 @@ export default function Finbar() {
           {/* ===== Dashboard tab ===== */}
           {tab === "dash" && (
             <div className="scrollbar" style={{ flex: 1, overflowY: "auto", padding: "0 18px 18px" }}>
-              <div style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: "22px 20px", marginBottom: 16, position: "relative", overflow: "hidden" }}>
+              <div ref={tourBalanceRef} style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: "22px 20px", marginBottom: 16, position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: `${t.accent}22`, filter: "blur(10px)" }} />
                 <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 6, position: "relative" }}>{ui.totalBalance} · {account.name}</div>
                 <div className="num display" style={{ fontSize: 38, fontWeight: 700, color: account.totalBalance >= 0 ? t.textStrong : "#FF7A6B", position: "relative" }}>
@@ -1500,7 +1571,7 @@ export default function Finbar() {
               </div>
 
               {pieData.some((d) => d.value > 0) && (
-                <div style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: "18px 16px", marginBottom: 16 }}>
+                <div ref={tourPieRef} style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: "18px 16px", marginBottom: 16 }}>
                   <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 8 }}>{ui.byCategory}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                     <div style={{ width: 110, height: 110, flexShrink: 0 }}>
@@ -1650,6 +1721,7 @@ export default function Finbar() {
                   </button>
                 )}
                 <textarea
+                  ref={tourChatInputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
@@ -1666,7 +1738,7 @@ export default function Finbar() {
 
           {/* ===== History tab ===== */}
           {tab === "history" && (
-            <div className="scrollbar" style={{ flex: 1, overflowY: "auto", padding: "6px 18px 18px" }}>
+            <div ref={tourHistoryRef} className="scrollbar" style={{ flex: 1, overflowY: "auto", padding: "6px 18px 18px" }}>
               {account.transactions.length === 0 && <div style={{ textAlign: "center", color: t.textMuted, fontSize: 13, marginTop: 40 }}>{ui.historyEmpty}</div>}
               {account.transactions.map((tx) => (
                 <div key={tx.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 4px", borderBottom: `1px solid ${t.surfaceBorder}` }}>
@@ -1836,36 +1908,49 @@ export default function Finbar() {
         );
       })()}
 
-      {!showLanguagePicker && !showLegalGate && showOnboarding && (() => {
-        const slides = ONBOARDING_SLIDES[appLanguage] || ONBOARDING_SLIDES.it;
-        const slide = slides[onboardingStep];
-        const isLast = onboardingStep === slides.length - 1;
+      {tourStep !== null && tourRect && (() => {
+        const steps = TOUR_STEPS[appLanguage] || TOUR_STEPS.it;
+        const step = steps[tourStep];
+        if (!step) return null;
+        const isLast = tourStep === steps.length - 1;
+        const inSettingsCtx = step.target === "sync" || step.target === "pct";
+        const r = tourRect;
+        const pad = 6;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const tooltipWidth = Math.min(300, vw - 24);
+        let tooltipTop = r.bottom + 14;
+        if (tooltipTop + 170 > vh) tooltipTop = Math.max(12, r.top - 14 - 170);
+        let tooltipLeft = r.left + r.width / 2 - tooltipWidth / 2;
+        tooltipLeft = Math.min(Math.max(12, tooltipLeft), vw - tooltipWidth - 12);
+
         return (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,20,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30, padding: 24 }}>
-            <div style={{ background: t.modalBg, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: 24, width: "100%", maxWidth: 380, textAlign: "center" }}>
-              <div style={{ fontSize: 40, marginBottom: 10 }}>{slide.icon}</div>
-              <h2 className="display" style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px", color: t.textStrong }}>{slide.title}</h2>
-              <div style={{ fontSize: 13, color: t.textMuted, lineHeight: 1.6, marginBottom: 20 }}>{slide.text}</div>
-              <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 20 }}>
-                {slides.map((_, i) => (
-                  <div key={i} style={{ width: i === onboardingStep ? 18 : 6, height: 6, borderRadius: 3, background: i === onboardingStep ? t.accent : t.surfaceBorder, transition: "width 0.2s" }} />
-                ))}
-              </div>
+          <>
+            {inSettingsCtx ? (
+              <div onClick={(e) => e.stopPropagation()} style={{ position: "fixed", inset: 0, zIndex: 41 }} />
+            ) : (
+              <>
+                <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: Math.max(0, r.top - pad), background: "rgba(6,8,16,0.78)", zIndex: 40 }} />
+                <div style={{ position: "fixed", top: r.bottom + pad, left: 0, right: 0, bottom: 0, background: "rgba(6,8,16,0.78)", zIndex: 40 }} />
+                <div style={{ position: "fixed", top: r.top - pad, left: 0, width: Math.max(0, r.left - pad), height: r.height + pad * 2, background: "rgba(6,8,16,0.78)", zIndex: 40 }} />
+                <div style={{ position: "fixed", top: r.top - pad, left: r.right + pad, right: 0, height: r.height + pad * 2, background: "rgba(6,8,16,0.78)", zIndex: 40 }} />
+              </>
+            )}
+            <div style={{ position: "fixed", top: r.top - pad, left: r.left - pad, width: r.width + pad * 2, height: r.height + pad * 2, border: `2px solid ${t.accent}`, borderRadius: 14, boxShadow: `0 0 0 4px ${t.accent}40`, pointerEvents: "none", zIndex: 42, transition: "top 0.2s, left 0.2s, width 0.2s, height 0.2s" }} />
+            <div style={{ position: "fixed", top: tooltipTop, left: tooltipLeft, width: tooltipWidth, background: t.modalBg, border: `1px solid ${t.modalBorder}`, borderRadius: 14, padding: 16, zIndex: 43, boxShadow: "0 8px 30px rgba(0,0,0,0.4)" }}>
+              <div style={{ fontSize: 10.5, color: t.textMuted, marginBottom: 6 }}>{tourStep + 1} / {steps.length}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: t.textStrong, marginBottom: 6 }}>{step.title}</div>
+              <div style={{ fontSize: 12.5, color: t.textPrimary, lineHeight: 1.5, marginBottom: 14 }}>{step.text}</div>
               <div style={{ display: "flex", gap: 8 }}>
-                {!isLast && (
-                  <button onClick={finishOnboarding} style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: `1.5px solid ${t.surfaceBorder}`, background: "transparent", color: t.textMuted, fontSize: 13.5, fontWeight: 500, cursor: "pointer" }}>
-                    {ui.obSkip}
-                  </button>
-                )}
-                <button
-                  onClick={() => (isLast ? finishOnboarding() : setOnboardingStep((s) => s + 1))}
-                  style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "none", background: t.accent, color: t.onAccent, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
-                >
+                <button onClick={tourSkip} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${t.surfaceBorder}`, background: "transparent", color: t.textMuted, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+                  {ui.obSkip}
+                </button>
+                <button onClick={tourNext} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: "none", background: t.accent, color: t.onAccent, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                   {isLast ? ui.obStart : ui.obNext}
                 </button>
               </div>
             </div>
-          </div>
+          </>
         );
       })()}
 
@@ -2052,7 +2137,7 @@ export default function Finbar() {
 
           {settingsSection === "categories" && account && (
             <>
-              <div style={{ fontSize: 12, color: t.textMuted, margin: "0 0 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div ref={tourCategoriesRef} style={{ fontSize: 12, color: t.textMuted, margin: "0 0 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>{account.name}</span>
                 {(() => {
                   const total = Math.round(Object.values(catDraft || account.categories).reduce((s, c) => s + (Number(c.pct) || 0), 0));
