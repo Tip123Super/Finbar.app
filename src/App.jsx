@@ -1099,21 +1099,40 @@ export default function Finbar() {
     return () => { clearTimeout(t1); window.removeEventListener("resize", measure); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tourStep, appLanguage, tab, showSettings, settingsSection]);
-  // Cambia valuta CONVERTENDO davvero i saldi al tasso di cambio reale del giorno
-  // (fonte: Frankfurter, tassi ufficiali BCE, gratuito e senza chiave API).
+  // Cambia valuta CONVERTENDO davvero i saldi al tasso di cambio reale del giorno.
+  // Prova prima Frankfurter (tassi BCE), e se non risponde prova un secondo servizio
+  // di riserva (open.er-api.com) — entrambi gratuiti, senza chiave API.
   // Lo storico delle transazioni NON viene toccato: ogni transazione resta nella
   // valuta in cui è stata fatta (già memorizzata su ciascuna al momento della registrazione).
+  const fetchExchangeRate = async (from, to) => {
+    try {
+      const res = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${to}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.rates && data.rates[to]) return data.rates[to];
+      }
+    } catch (e) {
+      console.warn("Frankfurter non raggiungibile, provo il servizio di riserva:", e);
+    }
+    try {
+      const res2 = await fetch(`https://open.er-api.com/v6/latest/${from}`);
+      if (res2.ok) {
+        const data2 = await res2.json();
+        if (data2 && data2.rates && data2.rates[to]) return data2.rates[to];
+      }
+    } catch (e) {
+      console.warn("Anche il servizio di riserva non ha risposto:", e);
+    }
+    return null;
+  };
   const changeCurrency = async (code) => {
     if (!account || code === account.currency) return;
     setCurrencyError(null);
     setCurrencyConverting(true);
     try {
       const from = account.currency || "EUR";
-      const res = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${code}`);
-      if (!res.ok) throw new Error("rate fetch failed");
-      const data = await res.json();
-      const rate = data && data.rates && data.rates[code];
-      if (!rate) throw new Error("no rate for this currency pair");
+      const rate = await fetchExchangeRate(from, code);
+      if (!rate) throw new Error("no rate available from either provider");
       const acc = JSON.parse(JSON.stringify(account));
       acc.currency = code;
       acc.totalBalance = acc.totalBalance * rate;
@@ -1121,7 +1140,8 @@ export default function Finbar() {
         acc.categories[cid].balance = acc.categories[cid].balance * rate;
       });
       persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
-    } catch {
+    } catch (e) {
+      console.error("Conversione valuta fallita:", e);
       setCurrencyError(ui.currencyConvertError);
     } finally {
       setCurrencyConverting(false);
