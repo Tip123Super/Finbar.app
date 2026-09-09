@@ -758,6 +758,35 @@ function inPeriod(dateStr, period) {
 }
 
 
+// Divide un messaggio in più comandi quando l'utente ne descrive più di uno nella stessa
+// frase (es. "aggiungi €7 in trasporti e togli €2 da svago"). Ogni pezzo verrà poi
+// interpretato separatamente come una transazione a sé stante.
+function splitCompoundSegments(rawText) {
+  const parts = rawText.split(/\s+(?:e|and|și|si|и|和)\s+/i).map((s) => s.trim()).filter(Boolean);
+  return parts.length > 1 ? parts : null;
+}
+
+// Riconosce una singola transazione (importo + categoria + tipo) da un pezzo di testo.
+// Usata sia per i messaggi normali sia per ciascun pezzo di un messaggio composto.
+function parseTransactionOnly(rawText, account) {
+  const text = normalizeText(rawText.trim());
+  const numMatch = rawText.match(NUM_REGEX);
+  if (!numMatch) return { kind: "unrecognized" };
+  const amount = parseFloat(numMatch[1].replace(",", "."));
+  if (!amount || amount <= 0) return { kind: "unrecognized" };
+
+  let transactionType;
+  if (matchAny(text, INCOME_WORDS) || matchesCustomType(text, account.customTypeWords, "entrata")) transactionType = "entrata";
+  else if (matchAny(text, EXPENSE_WORDS) || matchesCustomType(text, account.customTypeWords, "spesa")) transactionType = "spesa";
+  else transactionType = "spesa"; // un importo "nudo" (es. "20 cibo") è quasi sempre una spesa
+
+  const catId = detectCategory(text, account.categories, account.learnedTerms);
+  const note = rawText.replace(NUM_REGEX, "").trim().slice(0, 60);
+
+  if (!catId) return { kind: "need_category", amount, transactionType, note };
+  return { kind: "transaction", amount, transactionType, category: catId, note };
+}
+
 function localParseMessage(rawText, account, lang) {
   const tr = T[lang] || T.it;
   const text = normalizeText(rawText.trim());
@@ -792,21 +821,7 @@ function localParseMessage(rawText, account, lang) {
   }
 
   // 3) registrazione transazione
-  const numMatch = rawText.match(NUM_REGEX);
-  if (!numMatch) return { kind: "unrecognized" };
-  const amount = parseFloat(numMatch[1].replace(",", "."));
-  if (!amount || amount <= 0) return { kind: "unrecognized" };
-
-  let transactionType;
-  if (matchAny(text, INCOME_WORDS) || matchesCustomType(text, account.customTypeWords, "entrata")) transactionType = "entrata";
-  else if (matchAny(text, EXPENSE_WORDS) || matchesCustomType(text, account.customTypeWords, "spesa")) transactionType = "spesa";
-  else transactionType = "spesa"; // un importo "nudo" (es. "20 cibo") è quasi sempre una spesa
-
-  const catId = detectCategory(text, account.categories, account.learnedTerms);
-  const note = rawText.replace(NUM_REGEX, "").trim().slice(0, 60);
-
-  if (!catId) return { kind: "need_category", amount, transactionType, note };
-  return { kind: "transaction", amount, transactionType, category: catId, note };
+  return parseTransactionOnly(rawText, account);
 }
 
 export default function Finbar() {
@@ -1327,7 +1342,35 @@ export default function Finbar() {
       return;
     }
 
-    // ---- 1) prova il parser locale: gratis, istantaneo, niente chiamata AI ----
+    // ---- 1) prova a dividere il messaggio in più comandi (es. "aggiungi €7 in trasporti e togli €2 da svago") ----
+    const compoundSegments = splitCompoundSegments(text);
+    if (compoundSegments) {
+      const parsedSegments = compoundSegments.map((seg) => parseTransactionOnly(seg, account));
+      if (parsedSegments.every((p) => p.kind === "transaction")) {
+        let workingAccount = account;
+        const results = [];
+        for (const seg of parsedSegments) {
+          const { acc, ok } = applyTransaction(workingAccount, { transactionType: seg.transactionType, amount: seg.amount, category: seg.category, note: seg.note });
+          if (ok) workingAccount = acc;
+          results.push({ ...seg, ok });
+        }
+        if (workingAccount !== account) {
+          persistAccounts({ ...accounts, [workingAccount.id]: workingAccount }, activeId);
+        }
+        const lines = results.map((r) => {
+          const label = r.transactionType === "spesa" ? tr.expense : tr.income;
+          return r.ok ? tr.txRegistered(label, r.amount, r.note, account.currency) : tr.txFailed;
+        });
+        await persistChat([...next, {
+          role: "assistant", content: lines.join("\n"), ts: Date.now(), accountId: activeId, txOk: results.every((r) => r.ok),
+        }]);
+        return;
+      }
+      // se anche solo un pezzo non è una transazione completa (es. categoria mancante),
+      // rinuncio alla divisione e proseguo trattando il messaggio per intero, come prima
+    }
+
+    // ---- 2) prova il parser locale: gratis, istantaneo, niente chiamata AI ----
     const local = localParseMessage(text, account, appLanguage);
 
     if (local.kind === "answer") {
