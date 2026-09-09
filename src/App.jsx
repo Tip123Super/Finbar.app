@@ -165,7 +165,7 @@ function applyTransaction(account, { transactionType, amount, category, note }) 
   }
   acc.totalBalance += transactionType === "spesa" ? -amount : amount;
   acc.transactions.unshift({
-    id: uid(), type: transactionType, amount, category: category === "TUTTE" ? "Tutte le categorie" : acc.categories[category].label, note: note || "", date: todayISO(),
+    id: uid(), type: transactionType, amount, category: category === "TUTTE" ? "Tutte le categorie" : acc.categories[category].label, note: note || "", date: todayISO(), currency: account.currency,
   });
   return { acc, ok: true };
 }
@@ -402,6 +402,7 @@ const UI = {
     updateAvailable: "Nuova versione disponibile", updateBtn: "Aggiorna ora",
     saveCategoriesBtn: "Salva categorie", catErrorPrefix: "Impossibile completare l'operazione: le percentuali sommano al", catErrorSuffix: "%. Devono sommare esattamente al 100%.",
     recurringMenuShort: "Entrate/uscite automatiche", settingsMenuHint: "Tocca una sezione per aprirla",
+    currencyConverting: "Conversione in corso, un attimo…", currencyConvertError: "Impossibile convertire: serve una connessione internet, oppure il cambio per questa valuta non è al momento disponibile.",
     legalMenuLabel: "Privacy e Termini", legalTabPrivacy: "Privacy", legalTabTerms: "Termini", legalCheckboxLabel: "Ho letto e accetto la Privacy Policy e i Termini di Utilizzo", legalContinueBtn: "Continua", legalCourtesyNote: "Traduzione di cortesia — fa fede la versione in italiano.",
     newCategoryPh: "Nuova categoria…",
     recurringTitle: "Entrate e uscite automatiche · stipendi, pagette, abbonamenti…", recurringEmpty: "Nessuna voce ricorrente impostata.",
@@ -442,6 +443,7 @@ const UI = {
     updateAvailable: "New version available", updateBtn: "Update now",
     saveCategoriesBtn: "Save categories", catErrorPrefix: "Can't complete this: the percentages add up to", catErrorSuffix: "%. They must add up to exactly 100%.",
     recurringMenuShort: "Automatic income & expenses", settingsMenuHint: "Tap a section to open it",
+    currencyConverting: "Converting, one moment…", currencyConvertError: "Couldn't convert: you need an internet connection, or the rate for this currency isn't available right now.",
     legalMenuLabel: "Privacy & Terms", legalTabPrivacy: "Privacy", legalTabTerms: "Terms", legalCheckboxLabel: "I have read and accept the Privacy Policy and Terms of Use", legalContinueBtn: "Continue", legalCourtesyNote: "Courtesy translation — the Italian version is authoritative.",
     newCategoryPh: "New category…",
     recurringTitle: "Automatic income & expenses · salary, allowance, subscriptions…", recurringEmpty: "No recurring entries set.",
@@ -482,6 +484,7 @@ const UI = {
     updateAvailable: "Versiune nouă disponibilă", updateBtn: "Actualizează acum",
     saveCategoriesBtn: "Salvează categoriile", catErrorPrefix: "Operațiune imposibilă: procentele însumează", catErrorSuffix: "%. Trebuie să însumeze exact 100%.",
     recurringMenuShort: "Venituri/cheltuieli automate", settingsMenuHint: "Atinge o secțiune pentru a o deschide",
+    currencyConverting: "Conversie în curs, un moment…", currencyConvertError: "Conversie eșuată: ai nevoie de o conexiune la internet, sau cursul pentru această monedă nu este disponibil momentan.",
     legalMenuLabel: "Confidențialitate și Termeni", legalTabPrivacy: "Confidențialitate", legalTabTerms: "Termeni", legalCheckboxLabel: "Am citit și accept Politica de Confidențialitate și Termenii de Utilizare", legalContinueBtn: "Continuă", legalCourtesyNote: "Traducere de curtoazie — versiunea în italiană este de referință.",
     newCategoryPh: "Categorie nouă…",
     recurringTitle: "Venituri și cheltuieli automate · salariu, alocație, abonamente…", recurringEmpty: "Nicio înregistrare recurentă setată.",
@@ -522,6 +525,7 @@ const UI = {
     updateAvailable: "Доступна новая версия", updateBtn: "Обновить сейчас",
     saveCategoriesBtn: "Сохранить категории", catErrorPrefix: "Невозможно выполнить: сумма процентов составляет", catErrorSuffix: "%. Сумма должна быть ровно 100%.",
     recurringMenuShort: "Автоматические доходы и расходы", settingsMenuHint: "Нажмите на раздел, чтобы открыть его",
+    currencyConverting: "Конвертация, один момент…", currencyConvertError: "Не удалось выполнить конвертацию: нужно подключение к интернету, либо курс для этой валюты сейчас недоступен.",
     legalMenuLabel: "Конфиденциальность и Условия", legalTabPrivacy: "Конфиденциальность", legalTabTerms: "Условия", legalCheckboxLabel: "Я прочитал(а) и принимаю Политику конфиденциальности и Условия использования", legalContinueBtn: "Продолжить", legalCourtesyNote: "Перевод для удобства — официальной является итальянская версия.",
     newCategoryPh: "Новая категория…",
     recurringTitle: "Автоматические доходы и расходы · зарплата, пособия, подписки…", recurringEmpty: "Нет повторяющихся записей.",
@@ -562,6 +566,7 @@ const UI = {
     updateAvailable: "有新版本可用", updateBtn: "立即更新",
     saveCategoriesBtn: "保存分类", catErrorPrefix: "无法完成：百分比总和为", catErrorSuffix: "%。总和必须正好是100%。",
     recurringMenuShort: "自动收支", settingsMenuHint: "点击某个部分即可打开",
+    currencyConverting: "正在转换，请稍候…", currencyConvertError: "无法转换：需要网络连接，或该货币当前没有可用汇率。",
     legalMenuLabel: "隐私与条款", legalTabPrivacy: "隐私政策", legalTabTerms: "使用条款", legalCheckboxLabel: "我已阅读并接受隐私政策和使用条款", legalContinueBtn: "继续", legalCourtesyNote: "礼节性翻译——以意大利文版本为准。",
     newCategoryPh: "新分类…",
     recurringTitle: "自动收支 · 工资、零花钱、订阅…", recurringEmpty: "还没有设置自动记录。",
@@ -850,6 +855,8 @@ export default function Finbar() {
   const [restoreInput, setRestoreInput] = useState("");
   const [restoring, setRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState(null);
+  const [currencyConverting, setCurrencyConverting] = useState(false);
+  const [currencyError, setCurrencyError] = useState(null);
   const [appLanguage, setAppLanguage] = useState("it");
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
   const [showLegalGate, setShowLegalGate] = useState(false);
@@ -1092,9 +1099,33 @@ export default function Finbar() {
     return () => { clearTimeout(t1); window.removeEventListener("resize", measure); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tourStep, appLanguage, tab, showSettings, settingsSection]);
-  const changeCurrency = (code) => {
-    const acc = { ...account, currency: code };
-    persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
+  // Cambia valuta CONVERTENDO davvero i saldi al tasso di cambio reale del giorno
+  // (fonte: Frankfurter, tassi ufficiali BCE, gratuito e senza chiave API).
+  // Lo storico delle transazioni NON viene toccato: ogni transazione resta nella
+  // valuta in cui è stata fatta (già memorizzata su ciascuna al momento della registrazione).
+  const changeCurrency = async (code) => {
+    if (!account || code === account.currency) return;
+    setCurrencyError(null);
+    setCurrencyConverting(true);
+    try {
+      const from = account.currency || "EUR";
+      const res = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${code}`);
+      if (!res.ok) throw new Error("rate fetch failed");
+      const data = await res.json();
+      const rate = data && data.rates && data.rates[code];
+      if (!rate) throw new Error("no rate for this currency pair");
+      const acc = JSON.parse(JSON.stringify(account));
+      acc.currency = code;
+      acc.totalBalance = acc.totalBalance * rate;
+      Object.keys(acc.categories).forEach((cid) => {
+        acc.categories[cid].balance = acc.categories[cid].balance * rate;
+      });
+      persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
+    } catch {
+      setCurrencyError(ui.currencyConvertError);
+    } finally {
+      setCurrencyConverting(false);
+    }
   };
   const codeInputRef = useRef(null);
   const copySyncCode = async () => {
@@ -1290,7 +1321,8 @@ export default function Finbar() {
     if (!("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text.replace(/[{}"[\]]/g, ""));
-    u.lang = "it-IT";
+    const TTS_LANG = { it: "it-IT", en: "en-US", ro: "ro-RO", ru: "ru-RU", zh: "zh-CN" };
+    u.lang = TTS_LANG[appLanguage] || "it-IT";
     window.speechSynthesis.speak(u);
   };
 
@@ -1667,7 +1699,7 @@ export default function Finbar() {
                     {tx.note && <div style={{ fontSize: 11.5, color: t.textMuted }}>{tx.note}</div>}
                   </div>
                   <div className="num" style={{ fontSize: 13.5, fontWeight: 600, color: tx.type === "entrata" ? "#2ECC71" : tx.type === "spesa" ? "#FF7A6B" : t.textMuted }}>
-                    {tx.type === "spesa" ? "−" : tx.type === "entrata" ? "+" : ""}{currency(tx.amount, account.currency)}
+                    {tx.type === "spesa" ? "−" : tx.type === "entrata" ? "+" : ""}{currency(tx.amount, tx.currency || account.currency)}
                   </div>
                 </div>
               ))}
@@ -1792,7 +1824,7 @@ export default function Finbar() {
                     <div style={{ fontSize: 11.5, color: t.textMuted }}>{tx.date}{tx.note ? " · " + tx.note : ""}</div>
                   </div>
                   <div className="num" style={{ fontSize: 13.5, fontWeight: 600, color: tx.type === "entrata" ? "#2ECC71" : tx.type === "spesa" ? "#FF7A6B" : t.textMuted }}>
-                    {tx.type === "spesa" ? "−" : tx.type === "entrata" ? "+" : ""}{currency(tx.amount, account.currency)}
+                    {tx.type === "spesa" ? "−" : tx.type === "entrata" ? "+" : ""}{currency(tx.amount, tx.currency || account.currency)}
                   </div>
                 </div>
               ))}
@@ -2142,13 +2174,25 @@ export default function Finbar() {
           )}
 
           {settingsSection === "currency" && account && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {Object.entries(CURRENCIES).map(([code, c]) => (
-                <button key={code} onClick={() => changeCurrency(code)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${(account.currency || "EUR") === code ? t.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}>
-                  <span style={{ fontSize: 12.5, color: (account.currency || "EUR") === code ? t.accent : t.textStrong }}>{c.label}</span>
-                </button>
-              ))}
-            </div>
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {Object.entries(CURRENCIES).map(([code, c]) => (
+                  <button key={code} disabled={currencyConverting} onClick={() => changeCurrency(code)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${(account.currency || "EUR") === code ? t.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: currencyConverting ? "wait" : "pointer", opacity: currencyConverting ? 0.6 : 1 }}>
+                    <span style={{ fontSize: 12.5, color: (account.currency || "EUR") === code ? t.accent : t.textStrong }}>{c.label}</span>
+                  </button>
+                ))}
+              </div>
+              {currencyConverting && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: t.textMuted, marginTop: 10 }}>
+                  <RefreshCw size={12} /> {ui.currencyConverting}
+                </div>
+              )}
+              {currencyError && (
+                <div style={{ fontSize: 12, color: "#FF7A6B", background: "rgba(255,122,107,0.08)", border: "1px solid #4A2A2A", borderRadius: 8, padding: "8px 10px", marginTop: 10 }}>
+                  {currencyError}
+                </div>
+              )}
+            </>
           )}
 
           {settingsSection === "trend" && account && monthlyData.length > 0 && (
