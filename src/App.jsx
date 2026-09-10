@@ -285,6 +285,7 @@ const T = {
   it: {
     expense: "Uscita", income: "Entrata",
     txRegistered: (label, amt, note, cur) => `${label} registrata: ${currency(amt, cur)}${note ? " · " + note : ""}`,
+    balanceSet: (amt, cur) => `Fatto! Saldo totale impostato a ${currency(amt, cur)}, categorie ricalcolate in base alle percentuali.`,
     txFailed: "Non sono riuscito a registrarla, riprova.",
     needCategory: (label, amt, cur) => `Ho capito ${label === "Uscita" ? "un'uscita" : "un'entrata"} di ${currency(amt, cur)}, ma non la categoria. Scegline una qui sotto:`,
     balanceAnswer: (name, amt, cur) => `Il saldo di ${name} è ${currency(amt, cur)}.`,
@@ -303,6 +304,7 @@ const T = {
   en: {
     expense: "Expense", income: "Income",
     txRegistered: (label, amt, note, cur) => `${label} recorded: ${currency(amt, cur)}${note ? " · " + note : ""}`,
+    balanceSet: (amt, cur) => `Done! Total balance set to ${currency(amt, cur)}, categories recalculated based on percentages.`,
     txFailed: "I couldn't record it, please try again.",
     needCategory: (label, amt, cur) => `I understood ${label === "Expense" ? "an expense" : "an income"} of ${currency(amt, cur)}, but not the category. Pick one below:`,
     balanceAnswer: (name, amt, cur) => `${name}'s balance is ${currency(amt, cur)}.`,
@@ -321,6 +323,7 @@ const T = {
   ro: {
     expense: "Cheltuială", income: "Venit",
     txRegistered: (label, amt, note, cur) => `${label} înregistrată: ${currency(amt, cur)}${note ? " · " + note : ""}`,
+    balanceSet: (amt, cur) => `Gata! Soldul total a fost setat la ${currency(amt, cur)}, categoriile au fost recalculate pe baza procentelor.`,
     txFailed: "Nu am putut înregistra, încearcă din nou.",
     needCategory: (label, amt, cur) => `Am înțeles ${label === "Cheltuială" ? "o cheltuială" : "un venit"} de ${currency(amt, cur)}, dar nu categoria. Alege una mai jos:`,
     balanceAnswer: (name, amt, cur) => `Soldul contului ${name} este ${currency(amt, cur)}.`,
@@ -339,6 +342,7 @@ const T = {
   ru: {
     expense: "Расход", income: "Доход",
     txRegistered: (label, amt, note, cur) => `${label} записан: ${currency(amt, cur)}${note ? " · " + note : ""}`,
+    balanceSet: (amt, cur) => `Готово! Общий баланс установлен на ${currency(amt, cur)}, категории пересчитаны по процентам.`,
     txFailed: "Не удалось записать, попробуйте ещё раз.",
     needCategory: (label, amt, cur) => `Я понял ${label === "Расход" ? "расход" : "доход"} на ${currency(amt, cur)}, но не категорию. Выберите ниже:`,
     balanceAnswer: (name, amt, cur) => `Баланс «${name}»: ${currency(amt, cur)}.`,
@@ -357,6 +361,7 @@ const T = {
   zh: {
     expense: "支出", income: "收入",
     txRegistered: (label, amt, note, cur) => `${label}已记录：${currency(amt, cur)}${note ? " · " + note : ""}`,
+    balanceSet: (amt, cur) => `完成！总余额已设置为${currency(amt, cur)}，各分类已按百分比重新计算。`,
     txFailed: "记录失败，请重试。",
     needCategory: (label, amt, cur) => `我识别到一笔${label === "支出" ? "支出" : "收入"} ${currency(amt, cur)}，但不知道分类。请选择：`,
     balanceAnswer: (name, amt, cur) => `${name}的余额是 ${currency(amt, cur)}。`,
@@ -378,6 +383,7 @@ const UI = {
     totalBalance: "Saldo totale", byCategory: "Distribuzione per categoria", recentTx: "Ultime transazioni",
     btnEntry: "Voce", btnTransfer: "Trasferisci",
     chatEmpty1: "Prova:", chatEmptyExample: '"ho speso 15 euro in cibo"', chatEmpty2: "o scatta una foto a uno scontrino 📷",
+    chatEmptySetBalance: "Per cambiare il saldo totale:", chatEmptySetBalanceExample: '"modifica saldo a 500"',
     historyEmpty: "Nessuna transazione ancora.",
     yourAccounts: "I tuoi conti", newAccountBtn: "Nuovo conto",
     newAccountTitle: "Nuovo conto", restoreTitle: "Recupera i tuoi dati",
@@ -419,6 +425,7 @@ const UI = {
     totalBalance: "Total balance", byCategory: "Breakdown by category", recentTx: "Recent transactions",
     btnEntry: "Entry", btnTransfer: "Transfer",
     chatEmpty1: "Try:", chatEmptyExample: '"I spent $15 on food"', chatEmpty2: "or snap a photo of a receipt 📷",
+    chatEmptySetBalance: "To change the total balance:", chatEmptySetBalanceExample: '"set balance to 500"',
     historyEmpty: "No transactions yet.",
     yourAccounts: "Your accounts", newAccountBtn: "New account",
     newAccountTitle: "New account", restoreTitle: "Recover your data",
@@ -460,6 +467,7 @@ const UI = {
     totalBalance: "Sold total", byCategory: "Distribuție pe categorii", recentTx: "Tranzacții recente",
     btnEntry: "Adaugă", btnTransfer: "Transferă",
     chatEmpty1: "Încearcă:", chatEmptyExample: '"am cheltuit 15 lei pe mâncare"', chatEmpty2: "sau fă o poză unui bon 📷",
+    chatEmptySetBalance: "Pentru a schimba soldul total:", chatEmptySetBalanceExample: '"modifică soldul la 500"',
     historyEmpty: "Nicio tranzacție încă.",
     yourAccounts: "Conturile tale", newAccountBtn: "Cont nou",
     newAccountTitle: "Cont nou", restoreTitle: "Recuperează-ți datele",
@@ -501,6 +509,7 @@ const UI = {
     totalBalance: "Общий баланс", byCategory: "Распределение по категориям", recentTx: "Последние операции",
     btnEntry: "Запись", btnTransfer: "Перевод",
     chatEmpty1: "Попробуйте:", chatEmptyExample: '«потратил 15 евро на еду»', chatEmpty2: "или сфотографируйте чек 📷",
+    chatEmptySetBalance: "Чтобы изменить общий баланс:", chatEmptySetBalanceExample: '«изменить баланс на 500»',
     historyEmpty: "Пока нет операций.",
     yourAccounts: "Ваши счета", newAccountBtn: "Новый счёт",
     newAccountTitle: "Новый счёт", restoreTitle: "Восстановить данные",
@@ -542,6 +551,7 @@ const UI = {
     totalBalance: "总余额", byCategory: "分类占比", recentTx: "最近交易",
     btnEntry: "记一笔", btnTransfer: "转账",
     chatEmpty1: "试试：", chatEmptyExample: "「我在食物上花了15欧元」", chatEmpty2: "或拍一张小票照片 📷",
+    chatEmptySetBalance: "要修改总余额：", chatEmptySetBalanceExample: "「修改余额为500」",
     historyEmpty: "还没有交易记录。",
     yourAccounts: "你的账户", newAccountBtn: "新建账户",
     newAccountTitle: "新建账户", restoreTitle: "恢复数据",
@@ -790,6 +800,26 @@ function parseTransactionOnly(rawText, account) {
 
   if (!catId) return { kind: "need_category", amount, transactionType, note };
   return { kind: "transaction", amount, transactionType, category: catId, note };
+}
+
+// Riconosce il comando "Modifica saldo a [cifra]" (e equivalenti nelle altre lingue)
+// per impostare direttamente il saldo totale del conto, ricalcolando le categorie per percentuale.
+const SET_BALANCE_PATTERNS = [
+  /modifica\s+(?:il\s+)?saldo\s+a\s+([\d.,]+)/i,
+  /set\s+balance\s+to\s+([\d.,]+)/i,
+  /modific[ăa]\s+soldul\s+la\s+([\d.,]+)/i,
+  /измени(?:ть)?\s+баланс\s+на\s+([\d.,]+)/i,
+  /修改余额为\s*([\d.,]+)/i,
+];
+function matchSetBalanceCommand(rawText) {
+  for (const re of SET_BALANCE_PATTERNS) {
+    const m = rawText.match(re);
+    if (m) {
+      const val = parseFloat(m[1].replace(",", "."));
+      if (!isNaN(val) && val >= 0) return val;
+    }
+  }
+  return null;
 }
 
 function localParseMessage(rawText, account, lang) {
@@ -1106,16 +1136,16 @@ export default function Finbar() {
   // valuta in cui è stata fatta (già memorizzata su ciascuna al momento della registrazione).
   const fetchExchangeRate = async (from, to) => {
     try {
-      const res = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${to}`);
+      const res = await fetch(`https://open.er-api.com/v6/latest/${from}`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.rates && data.rates[to]) return data.rates[to];
       }
     } catch (e) {
-      console.warn("Frankfurter non raggiungibile, provo il servizio di riserva:", e);
+      console.warn("Servizio principale non raggiungibile, provo la riserva:", e);
     }
     try {
-      const res2 = await fetch(`https://open.er-api.com/v6/latest/${from}`);
+      const res2 = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${to}`);
       if (res2.ok) {
         const data2 = await res2.json();
         if (data2 && data2.rates && data2.rates[to]) return data2.rates[to];
@@ -1394,7 +1424,20 @@ export default function Finbar() {
       return;
     }
 
-    // ---- 1) prova a dividere il messaggio in più comandi (es. "aggiungi €7 in trasporti e togli €2 da svago") ----
+    // ---- 1) comando "Modifica saldo a [cifra]": imposta il saldo totale e ricalcola le categorie ----
+    const setBalanceValue = matchSetBalanceCommand(text);
+    if (setBalanceValue !== null) {
+      const acc = JSON.parse(JSON.stringify(account));
+      acc.totalBalance = setBalanceValue;
+      Object.keys(acc.categories).forEach((cid) => {
+        acc.categories[cid].balance = (setBalanceValue * (acc.categories[cid].pct || 0)) / 100;
+      });
+      persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
+      await persistChat([...next, { role: "assistant", content: tr.balanceSet(setBalanceValue, account.currency), ts: Date.now(), accountId: activeId }]);
+      return;
+    }
+
+    // ---- 2) prova a dividere il messaggio in più comandi (es. "aggiungi €7 in trasporti e togli €2 da svago") ----
     const compoundSegments = splitCompoundSegments(text);
     if (compoundSegments) {
       const parsedSegments = compoundSegments.map((seg) => parseTransactionOnly(seg, account));
@@ -1422,7 +1465,7 @@ export default function Finbar() {
       // rinuncio alla divisione e proseguo trattando il messaggio per intero, come prima
     }
 
-    // ---- 2) prova il parser locale: gratis, istantaneo, niente chiamata AI ----
+    // ---- 3) prova il parser locale: gratis, istantaneo, niente chiamata AI ----
     const local = localParseMessage(text, account, appLanguage);
 
     if (local.kind === "answer") {
@@ -1450,7 +1493,7 @@ export default function Finbar() {
       return;
     }
 
-    // ---- 2) fallback: solo se il parser locale non ha capito, chiedo all'AI ----
+    // ---- 4) fallback: solo se il parser locale non ha capito, chiedo all'AI ----
     setSending(true);
     try {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -1733,7 +1776,8 @@ export default function Finbar() {
                 {chatForAccount.length === 0 && (
                   <div style={{ textAlign: "center", color: t.textMuted, fontSize: 13, marginTop: 30, lineHeight: 1.7 }}>
                     {ui.chatEmpty1} <span style={{ color: t.textMuted, fontStyle: "italic" }}>{ui.chatEmptyExample}</span><br />
-                    {ui.chatEmpty2}
+                    {ui.chatEmpty2}<br />
+                    <span style={{ fontSize: 12, opacity: 0.85 }}>{ui.chatEmptySetBalance} <span style={{ fontStyle: "italic" }}>{ui.chatEmptySetBalanceExample}</span></span>
                   </div>
                 )}
                 {chatForAccount.map((m, i) => (
