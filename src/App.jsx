@@ -97,29 +97,47 @@ const currency = (n, code = "EUR") => {
 };
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-// Spende da una categoria specifica. Se la categoria non ha abbastanza saldo,
-// la porta esattamente a 0 e distribuisce il resto (l'eccedenza) sulle ALTRE
-// categorie, in proporzione alle loro percentuali — così nessuna categoria
-// va da sola in negativo, il "buco" viene condiviso da tutto il budget.
+// Spende da una categoria specifica. Se non ha abbastanza saldo, la porta esattamente
+// a 0 (mai sotto) e distribuisce la parte mancante sulle ALTRE categorie che hanno ancora
+// saldo positivo, in proporzione alle loro percentuali. Se anche una di queste non basta,
+// si ferma a 0 a sua volta e il resto continua a scaricarsi su quelle ancora "in vita" —
+// così nessuna categoria scende mai sotto zero singolarmente, il "buco" si condivide a
+// cascata su tutto il budget rimasto. Il saldo TOTALE del conto (gestito altrove) scala
+// sempre della cifra esatta spesa, indipendentemente da come si distribuisce qui dentro.
 function spendFromCategory(acc, category, amount) {
   const cat = acc.categories[category];
-  const available = cat.balance;
-  if (available - amount >= 0) {
-    cat.balance = available - amount;
-    return;
+  let remaining = amount;
+
+  const useDirect = Math.min(Math.max(cat.balance, 0), remaining);
+  cat.balance -= useDirect;
+  remaining -= useDirect;
+  if (remaining <= 0.0001) return;
+
+  let pool = Object.keys(acc.categories).filter((c) => c !== category && acc.categories[c].balance > 0);
+  while (remaining > 0.0001 && pool.length > 0) {
+    const totalPct = pool.reduce((s, c) => s + (acc.categories[c].pct || 0), 0);
+    let absorbedThisRound = 0;
+    const emptied = [];
+    pool.forEach((c) => {
+      const weight = totalPct > 0 ? acc.categories[c].pct / totalPct : 1 / pool.length;
+      const share = remaining * weight;
+      const target = acc.categories[c];
+      if (target.balance >= share) {
+        target.balance -= share;
+        absorbedThisRound += share;
+      } else {
+        absorbedThisRound += target.balance;
+        target.balance = 0;
+        emptied.push(c);
+      }
+    });
+    remaining -= absorbedThisRound;
+    if (emptied.length === 0) break; // tutto assorbito in questo giro, nessuno si è azzerato
+    pool = pool.filter((c) => !emptied.includes(c));
   }
-  const overflow = amount - available; // quanto manca, tenendo conto di un eventuale saldo già negativo
-  cat.balance = 0;
-  const others = Object.keys(acc.categories).filter((c) => c !== category);
-  if (others.length === 0) {
-    cat.balance -= overflow; // nessuna altra categoria: non c'è dove distribuirlo
-    return;
-  }
-  const totalPct = others.reduce((s, c) => s + (acc.categories[c].pct || 0), 0);
-  others.forEach((c) => {
-    const weight = totalPct > 0 ? acc.categories[c].pct / totalPct : 1 / others.length;
-    acc.categories[c].balance -= overflow * weight;
-  });
+  // se resta ancora un'eccedenza dopo aver azzerato proprio tutte le categorie,
+  // non c'è più nulla da fare a livello di suddivisione interna: il saldo totale
+  // del conto (calcolato a parte) riflette comunque per intero la spesa reale.
 }
 
 function newAccount(name, initialBalance, currencyCode) {
