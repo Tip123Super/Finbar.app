@@ -666,7 +666,7 @@ const NUM_REGEX = /(\d+(?:[.,]\d{1,2})?)/;
 
 const INCOME_WORDS = [
   "guadagnat", "ricevut", "incassat", "stipendio", "entrata", "entrate", "aggiung", "deposit", "accredit", "reddito", "pagett", "vinto", "vinta",
-  "earned", "received", "income", "add", "added", "deposit", "credited", "salary", "paid me", "got paid", "allowance", "won", "i won",
+  "earned", "received", "income", "add", "added", "deposit", "credited", "salary", "paid me", "got paid", "allowance", "won", "i won", "gain", "gained",
   "castigat", "primit", "venit", "adaug", "salariu", "depus", "depune", "am invins", "invins", "am castigat",
   "заработал", "заработала", "получил", "получила", "доход", "добав", "депозит", "зарплата", "выиграл", "выиграла",
   "赚了", "收到", "收入", "添加", "存入", "工资", "赢了",
@@ -1001,7 +1001,8 @@ export default function Finbar() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { setVoiceSupported(false); return; }
     const rec = new SR();
-    rec.lang = "it-IT";
+    const STT_LANG = { it: "it-IT", en: "en-US", ro: "ro-RO", ru: "ru-RU", zh: "zh-CN" };
+    rec.lang = STT_LANG[appLanguage] || "it-IT";
     rec.continuous = false;
     rec.interimResults = true;
     rec.onresult = (ev) => {
@@ -1013,7 +1014,7 @@ export default function Finbar() {
     rec.onerror = () => setListening(false);
     rec.onend = () => setListening(false);
     recognitionRef.current = rec;
-  }, []);
+  }, [appLanguage]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -1825,15 +1826,15 @@ export default function Finbar() {
                     <div className="num" style={{ fontSize: 20, fontWeight: 700, marginBottom: 2 }}>{currency(pendingReceipt.amount, account.currency)}</div>
                     <div style={{ fontSize: 13, color: t.textPrimary, marginBottom: 12 }}>{pendingReceipt.note} · {account.categories[pendingReceipt.category]?.label || pendingReceipt.category}</div>
                     <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={confirmReceipt} style={{ flex: 1, background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "8px 0", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>Conferma</button>
-                      <button onClick={() => setPendingReceipt(null)} style={{ flex: 1, background: t.surfaceAlt, color: t.textPrimary, border: `1px solid ${t.surfaceAltBorder}`, borderRadius: 8, padding: "8px 0", fontWeight: 600, fontSize: 12.5, cursor: "pointer" }}>Annulla</button>
+                      <button onClick={confirmReceipt} style={{ flex: 1, background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "8px 0", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>{(T[appLanguage] || T.it).confirm}</button>
+                      <button onClick={() => setPendingReceipt(null)} style={{ flex: 1, background: t.surfaceAlt, color: t.textPrimary, border: `1px solid ${t.surfaceAltBorder}`, borderRadius: 8, padding: "8px 0", fontWeight: 600, fontSize: 12.5, cursor: "pointer" }}>{(T[appLanguage] || T.it).cancel}</button>
                     </div>
                   </div>
                 )}
 
                 {pendingCategoryChoice && (
                   <div className="in" style={{ alignSelf: "flex-start", maxWidth: "88%", background: t.surfaceRow, border: `1px solid ${t.accent}55`, borderRadius: 14, padding: 14 }}>
-                    <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10 }}>Scegli una categoria</div>
+                    <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10 }}>{(T[appLanguage] || T.it).chooseCategory}</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                       {Object.entries(account.categories).map(([id, c]) => (
                         <button key={id} onClick={() => resolveCategoryChoice(id)} style={{ display: "flex", alignItems: "center", gap: 5, background: t.surfaceAlt, border: `1px solid ${c.color}55`, borderRadius: 20, padding: "6px 12px", color: t.textStrong, fontSize: 12, cursor: "pointer" }}>
@@ -1842,9 +1843,9 @@ export default function Finbar() {
                       ))}
                     </div>
                     <button onClick={() => resolveCategoryChoice("TUTTE")} style={{ width: "100%", background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "8px 0", fontWeight: 700, fontSize: 12.5, cursor: "pointer", marginBottom: 6 }}>
-                      Dividi su tutte le categorie
+                      {(T[appLanguage] || T.it).splitAll}
                     </button>
-                    <button onClick={() => setPendingCategoryChoice(null)} style={{ width: "100%", background: "none", border: `1px solid ${t.surfaceAltBorder}`, borderRadius: 8, padding: "8px 0", color: t.textMuted, fontSize: 12, cursor: "pointer" }}>Annulla</button>
+                    <button onClick={() => setPendingCategoryChoice(null)} style={{ width: "100%", background: "none", border: `1px solid ${t.surfaceAltBorder}`, borderRadius: 8, padding: "8px 0", color: t.textMuted, fontSize: 12, cursor: "pointer" }}>{(T[appLanguage] || T.it).cancel}</button>
                   </div>
                 )}
 
