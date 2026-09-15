@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, Trash2, Wallet, Send, Mic, MicOff, Camera, X, Check, ArrowLeftRight,
-  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield,
+  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
@@ -25,6 +25,8 @@ const CHAT_KEY = "finex:chat";
 const SYNC_CODE_KEY = "finex:sync-code";
 const LANGUAGE_KEY = "finex:language";
 const LEGAL_ACCEPTED_KEY = "finex:legal-accepted";
+const TEXT_SCALE_KEY = "finex:text-scale";
+const TEXT_SCALE_OPTIONS = [1, 1.15, 1.3, 1.5, 1.75, 2];
 
 // ---- Supabase: sincronizzazione tra dispositivi tramite codice ----
 const SUPABASE_URL = "https://vhlneufpkwzbuapwlmap.supabase.co";
@@ -419,6 +421,7 @@ const UI = {
     haveCodeOtherDevice: "Hai già un codice da un altro dispositivo? Inseriscilo qui per recuperare i tuoi dati (sostituisce quelli locali).",
     recoverBtn: "Recupera",
     languageTitle: "Lingua", themeTitle: "Tema colore", currencyTitle: "Valuta del conto",
+    textSizeTitle: "Dimensione testo", textSizeDesc: "Ingrandisce solo il testo dell'app, lasciando invariati layout e icone.",
     monthlyTrend: "Andamento mensile", vsLastMonth: "vs mese scorso", netMonthly: "Netto mensile", threshold20: "Soglia +20%",
     categoriesTitle: "Categorie", total: "Totale", learnedWords: "Parole imparate", customWords: "Parole personalizzate",
     obNext: "Avanti", obSkip: "Salta", obStart: "Inizia",
@@ -461,6 +464,7 @@ const UI = {
     haveCodeOtherDevice: "Already have a code from another device? Enter it here to recover your data (replaces local data).",
     recoverBtn: "Recover",
     languageTitle: "Language", themeTitle: "Color theme", currencyTitle: "Account currency",
+    textSizeTitle: "Text size", textSizeDesc: "Enlarges only the app's text, leaving layout and icons unchanged.",
     monthlyTrend: "Monthly trend", vsLastMonth: "vs last month", netMonthly: "Monthly net", threshold20: "+20% threshold",
     categoriesTitle: "Categories", total: "Total", learnedWords: "Learned words", customWords: "Custom words",
     obNext: "Next", obSkip: "Skip", obStart: "Get started",
@@ -503,6 +507,7 @@ const UI = {
     haveCodeOtherDevice: "Ai deja un cod de pe alt dispozitiv? Introdu-l aici pentru a-ți recupera datele (înlocuiește datele locale).",
     recoverBtn: "Recuperează",
     languageTitle: "Limbă", themeTitle: "Temă de culoare", currencyTitle: "Moneda contului",
+    textSizeTitle: "Dimensiunea textului", textSizeDesc: "Mărește doar textul aplicației, fără să schimbe aspectul sau pictogramele.",
     monthlyTrend: "Evoluție lunară", vsLastMonth: "față de luna trecută", netMonthly: "Net lunar", threshold20: "Prag +20%",
     categoriesTitle: "Categorii", total: "Total", learnedWords: "Cuvinte învățate", customWords: "Cuvinte personalizate",
     obNext: "Înainte", obSkip: "Sari peste", obStart: "Începe",
@@ -545,6 +550,7 @@ const UI = {
     haveCodeOtherDevice: "Уже есть код с другого устройства? Введите его здесь, чтобы восстановить данные (заменит локальные).",
     recoverBtn: "Восстановить",
     languageTitle: "Язык", themeTitle: "Цветовая тема", currencyTitle: "Валюта счёта",
+    textSizeTitle: "Размер текста", textSizeDesc: "Увеличивает только текст приложения, не меняя расположение и иконки.",
     monthlyTrend: "Динамика по месяцам", vsLastMonth: "к прошлому месяцу", netMonthly: "Итог за месяц", threshold20: "Порог +20%",
     categoriesTitle: "Категории", total: "Всего", learnedWords: "Изученные слова", customWords: "Пользовательские слова",
     obNext: "Далее", obSkip: "Пропустить", obStart: "Начать",
@@ -587,6 +593,7 @@ const UI = {
     haveCodeOtherDevice: "已经有其他设备的代码？在此输入以恢复数据（将替换本地数据）。",
     recoverBtn: "恢复",
     languageTitle: "语言", themeTitle: "配色主题", currencyTitle: "账户货币",
+    textSizeTitle: "文字大小", textSizeDesc: "仅放大应用内的文字，不改变布局和图标。",
     monthlyTrend: "月度趋势", vsLastMonth: "较上月", netMonthly: "月净额", threshold20: "+20% 阈值",
     categoriesTitle: "分类", total: "总计", learnedWords: "已学会的词", customWords: "自定义词汇",
     obNext: "下一步", obSkip: "跳过", obStart: "开始使用",
@@ -882,6 +889,7 @@ export default function Finbar() {
   const [accounts, setAccounts] = useState({});
   const [activeId, setActiveId] = useState(null);
   const [themeKey, setThemeKey] = useState("indaco");
+  const [textScale, setTextScale] = useState(1);
   const [tab, setTab] = useState("dash");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -933,18 +941,22 @@ export default function Finbar() {
   const t = THEMES[themeKey];
   const ui = UI[appLanguage] || UI.it;
   const account = accounts[activeId];
+  // fs(px): applica il fattore di ingrandimento testo scelto in Impostazioni.
+  // Tocca solo fontSize, mai spaziature/icone/layout, così la scala resta leggibile senza rompere la UI.
+  const fs = (px) => Math.round(px * textScale * 10) / 10;
 
   // ---- load ----
   useEffect(() => {
     (async () => {
       try {
-        const [a, th, c, sc, lg, la] = await Promise.allSettled([
+        const [a, th, c, sc, lg, la, ts] = await Promise.allSettled([
           window.storage.get(ACCOUNTS_KEY, false),
           window.storage.get(THEME_KEY, false),
           window.storage.get(CHAT_KEY, false),
           window.storage.get(SYNC_CODE_KEY, false),
           window.storage.get(LANGUAGE_KEY, false),
           window.storage.get(LEGAL_ACCEPTED_KEY, false),
+          window.storage.get(TEXT_SCALE_KEY, false),
         ]);
         let accs = {};
         let active = null;
@@ -960,6 +972,7 @@ export default function Finbar() {
           try { await window.storage.set(ACCOUNTS_KEY, JSON.stringify({ accounts: processed, activeId: active }), false); } catch {}
         }
         setThemeKey(th.status === "fulfilled" && th.value ? th.value.value : "indaco");
+        setTextScale(ts.status === "fulfilled" && ts.value ? Number(ts.value.value) : 1);
         setMessages(c.status === "fulfilled" && c.value ? JSON.parse(c.value.value) : []);
         if (Object.keys(accs).length === 0) setShowNewAccount(true);
 
@@ -1067,6 +1080,10 @@ export default function Finbar() {
   const changeTheme = async (key) => {
     setThemeKey(key);
     try { await window.storage.set(THEME_KEY, key, false); } catch {}
+  };
+  const changeTextScale = async (scale) => {
+    setTextScale(scale);
+    try { await window.storage.set(TEXT_SCALE_KEY, String(scale), false); } catch {}
   };
   const changeLanguage = async (lang) => {
     setAppLanguage(lang);
@@ -1651,10 +1668,10 @@ export default function Finbar() {
 
       {updateAvailable && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, display: "flex", justifyContent: "center", padding: "10px 12px", pointerEvents: "none" }}>
-          <div style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: 10, background: t.accent, color: t.onAccent, borderRadius: 12, padding: "9px 10px 9px 14px", fontSize: 12.5, fontWeight: 600, boxShadow: "0 4px 14px rgba(0,0,0,0.35)" }}>
+          <div style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: 10, background: t.accent, color: t.onAccent, borderRadius: 12, padding: "9px 10px 9px 14px", fontSize: fs(12.5), fontWeight: 600, boxShadow: "0 4px 14px rgba(0,0,0,0.35)" }}>
             <RefreshCw size={14} />
             <span>{ui.updateAvailable}</span>
-            <button onClick={applyUpdate} style={{ background: "rgba(0,0,0,0.18)", border: "none", borderRadius: 8, padding: "6px 10px", color: t.onAccent, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            <button onClick={applyUpdate} style={{ background: "rgba(0,0,0,0.18)", border: "none", borderRadius: 8, padding: "6px 10px", color: t.onAccent, fontSize: fs(12), fontWeight: 700, cursor: "pointer" }}>
               {ui.updateBtn}
             </button>
           </div>
@@ -1678,7 +1695,7 @@ export default function Finbar() {
         {account && (
           <button
             onClick={() => setShowAccountSwitcher(true)}
-            style={{ display: "flex", alignItems: "center", gap: 6, background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 20, padding: "6px 12px 6px 10px", color: t.textPrimary, fontSize: 13, cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 20, padding: "6px 12px 6px 10px", color: t.textPrimary, fontSize: fs(13), cursor: "pointer" }}
           >
             <Wallet size={13} color={t.accent} />
             {account.name}
@@ -1700,8 +1717,8 @@ export default function Finbar() {
             <div className="scrollbar" style={{ flex: 1, overflowY: "auto", padding: "0 18px 18px" }}>
               <div ref={tourBalanceRef} style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: "22px 20px", marginBottom: 16, position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: `${t.accent}22`, filter: "blur(10px)" }} />
-                <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 6, position: "relative" }}>{ui.totalBalance} · {account.name}</div>
-                <div className="num display" style={{ fontSize: 38, fontWeight: 700, color: account.totalBalance >= 0 ? t.textStrong : "#FF7A6B", position: "relative" }}>
+                <div style={{ fontSize: fs(12), color: t.textMuted, marginBottom: 6, position: "relative" }}>{ui.totalBalance} · {account.name}</div>
+                <div className="num display" style={{ fontSize: fs(38), fontWeight: 700, color: account.totalBalance >= 0 ? t.textStrong : "#FF7A6B", position: "relative" }}>
                   {currency(account.totalBalance, account.currency)}
                 </div>
                 {trendData.length > 1 && (
@@ -1720,10 +1737,10 @@ export default function Finbar() {
                   </div>
                 )}
                 <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                  <button onClick={() => setShowForm(true)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: t.accent, color: t.onAccent, border: "none", padding: "10px 0", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                  <button onClick={() => setShowForm(true)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: t.accent, color: t.onAccent, border: "none", padding: "10px 0", borderRadius: 10, fontWeight: 700, fontSize: fs(13), cursor: "pointer" }}>
                     <Plus size={15} /> {ui.btnEntry}
                   </button>
-                  <button onClick={() => setShowTransfer(true)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: t.surfaceAlt, color: t.textPrimary, border: `1px solid ${t.surfaceAltBorder}`, padding: "10px 0", borderRadius: 10, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                  <button onClick={() => setShowTransfer(true)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: t.surfaceAlt, color: t.textPrimary, border: `1px solid ${t.surfaceAltBorder}`, padding: "10px 0", borderRadius: 10, fontWeight: 600, fontSize: fs(13), cursor: "pointer" }}>
                     <ArrowLeftRight size={14} /> {ui.btnTransfer}
                   </button>
                 </div>
@@ -1731,7 +1748,7 @@ export default function Finbar() {
 
               {pieData.some((d) => d.value > 0) && (
                 <div ref={tourPieRef} style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: "18px 16px", marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 8 }}>{ui.byCategory}</div>
+                  <div style={{ fontSize: fs(12), color: t.textMuted, marginBottom: 8 }}>{ui.byCategory}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                     <div style={{ width: 110, height: 110, flexShrink: 0 }}>
                       <ResponsiveContainer width="100%" height="100%">
@@ -1756,7 +1773,7 @@ export default function Finbar() {
                           key={id}
                           onClick={() => setHighlightedCatId((prev) => (prev === id ? null : id))}
                           style={{
-                            display: "flex", alignItems: "center", gap: 7, fontSize: 12.5,
+                            display: "flex", alignItems: "center", gap: 7, fontSize: fs(12.5),
                             padding: "4px 7px", borderRadius: 8, cursor: "pointer",
                             border: `1.5px solid ${highlightedCatId === id ? c.color : "transparent"}`,
                             transition: "border-color 0.15s",
@@ -1772,15 +1789,15 @@ export default function Finbar() {
                 </div>
               )}
 
-              <div style={{ fontSize: 12, color: t.textMuted, margin: "0 2px 8px" }}>{ui.recentTx}</div>
+              <div style={{ fontSize: fs(12), color: t.textMuted, margin: "0 2px 8px" }}>{ui.recentTx}</div>
               {account.transactions.slice(0, 6).map((tx) => (
                 <div key={tx.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 4px", borderBottom: `1px solid ${t.surfaceBorder}` }}>
                   {tx.type === "entrata" ? <TrendingUp size={15} color="#2ECC71" /> : tx.type === "spesa" ? <TrendingDown size={15} color="#FF7A6B" /> : <Wallet size={15} color={t.textMuted} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, color: t.textStrong }}>{tx.category}</div>
-                    {tx.note && <div style={{ fontSize: 11.5, color: t.textMuted }}>{tx.note}</div>}
+                    <div style={{ fontSize: fs(13.5), color: t.textStrong }}>{tx.category}</div>
+                    {tx.note && <div style={{ fontSize: fs(11.5), color: t.textMuted }}>{tx.note}</div>}
                   </div>
-                  <div className="num" style={{ fontSize: 13.5, fontWeight: 600, color: tx.type === "entrata" ? "#2ECC71" : tx.type === "spesa" ? "#FF7A6B" : t.textMuted }}>
+                  <div className="num" style={{ fontSize: fs(13.5), fontWeight: 600, color: tx.type === "entrata" ? "#2ECC71" : tx.type === "spesa" ? "#FF7A6B" : t.textMuted }}>
                     {tx.type === "spesa" ? "−" : tx.type === "entrata" ? "+" : ""}{currency(tx.amount, tx.currency || account.currency)}
                   </div>
                 </div>
@@ -1793,10 +1810,10 @@ export default function Finbar() {
             <>
               <div ref={scrollRef} className="scrollbar" style={{ flex: 1, overflowY: "auto", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
                 {chatForAccount.length === 0 && (
-                  <div style={{ textAlign: "center", color: t.textMuted, fontSize: 13, marginTop: 30, lineHeight: 1.7 }}>
+                  <div style={{ textAlign: "center", color: t.textMuted, fontSize: fs(13), marginTop: 30, lineHeight: 1.7 }}>
                     {ui.chatEmpty1} <span style={{ color: t.textMuted, fontStyle: "italic" }}>{ui.chatEmptyExample}</span><br />
                     {ui.chatEmpty2}<br />
-                    <span style={{ fontSize: 12, opacity: 0.85 }}>{ui.chatEmptySetBalance} <span style={{ fontStyle: "italic" }}>{ui.chatEmptySetBalanceExample}</span></span>
+                    <span style={{ fontSize: fs(12), opacity: 0.85 }}>{ui.chatEmptySetBalance} <span style={{ fontStyle: "italic" }}>{ui.chatEmptySetBalanceExample}</span></span>
                   </div>
                 )}
                 {chatForAccount.map((m, i) => (
@@ -1807,10 +1824,10 @@ export default function Finbar() {
                       borderBottomLeftRadius: m.role === "user" ? 15 : 4,
                       background: m.role === "user" ? t.surfaceAlt : `${t.accent}18`,
                       border: m.role === "assistant" ? `1px solid ${t.accent}40` : "none",
-                      fontSize: 14, lineHeight: 1.5,
+                      fontSize: fs(14), lineHeight: 1.5,
                     }}>
                       {m.content}
-                      {m.txOk && <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5, fontSize: 11, color: "#2ECC71" }}><Check size={11} /> Registrato</div>}
+                      {m.txOk && <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5, fontSize: fs(11), color: "#2ECC71" }}><Check size={11} /> Registrato</div>}
                       {m.role === "assistant" && (
                         <button onClick={() => speak(m.content)} className="icon-btn" style={{ marginTop: 5, color: t.textMuted }} aria-label="Ascolta">
                           <Volume2 size={12} />
@@ -1822,37 +1839,37 @@ export default function Finbar() {
 
                 {pendingReceipt && (
                   <div className="in" style={{ alignSelf: "flex-start", maxWidth: "88%", background: t.surfaceRow, border: `1px solid ${t.accent}55`, borderRadius: 14, padding: 14 }}>
-                    <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 6 }}>📷 Scontrino letto</div>
-                    <div className="num" style={{ fontSize: 20, fontWeight: 700, marginBottom: 2 }}>{currency(pendingReceipt.amount, account.currency)}</div>
-                    <div style={{ fontSize: 13, color: t.textPrimary, marginBottom: 12 }}>{pendingReceipt.note} · {account.categories[pendingReceipt.category]?.label || pendingReceipt.category}</div>
+                    <div style={{ fontSize: fs(12), color: t.textMuted, marginBottom: 6 }}>📷 Scontrino letto</div>
+                    <div className="num" style={{ fontSize: fs(20), fontWeight: 700, marginBottom: 2 }}>{currency(pendingReceipt.amount, account.currency)}</div>
+                    <div style={{ fontSize: fs(13), color: t.textPrimary, marginBottom: 12 }}>{pendingReceipt.note} · {account.categories[pendingReceipt.category]?.label || pendingReceipt.category}</div>
                     <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={confirmReceipt} style={{ flex: 1, background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "8px 0", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>{(T[appLanguage] || T.it).confirm}</button>
-                      <button onClick={() => setPendingReceipt(null)} style={{ flex: 1, background: t.surfaceAlt, color: t.textPrimary, border: `1px solid ${t.surfaceAltBorder}`, borderRadius: 8, padding: "8px 0", fontWeight: 600, fontSize: 12.5, cursor: "pointer" }}>{(T[appLanguage] || T.it).cancel}</button>
+                      <button onClick={confirmReceipt} style={{ flex: 1, background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "8px 0", fontWeight: 700, fontSize: fs(12.5), cursor: "pointer" }}>{(T[appLanguage] || T.it).confirm}</button>
+                      <button onClick={() => setPendingReceipt(null)} style={{ flex: 1, background: t.surfaceAlt, color: t.textPrimary, border: `1px solid ${t.surfaceAltBorder}`, borderRadius: 8, padding: "8px 0", fontWeight: 600, fontSize: fs(12.5), cursor: "pointer" }}>{(T[appLanguage] || T.it).cancel}</button>
                     </div>
                   </div>
                 )}
 
                 {pendingCategoryChoice && (
                   <div className="in" style={{ alignSelf: "flex-start", maxWidth: "88%", background: t.surfaceRow, border: `1px solid ${t.accent}55`, borderRadius: 14, padding: 14 }}>
-                    <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10 }}>{(T[appLanguage] || T.it).chooseCategory}</div>
+                    <div style={{ fontSize: fs(12), color: t.textMuted, marginBottom: 10 }}>{(T[appLanguage] || T.it).chooseCategory}</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                       {Object.entries(account.categories).map(([id, c]) => (
-                        <button key={id} onClick={() => resolveCategoryChoice(id)} style={{ display: "flex", alignItems: "center", gap: 5, background: t.surfaceAlt, border: `1px solid ${c.color}55`, borderRadius: 20, padding: "6px 12px", color: t.textStrong, fontSize: 12, cursor: "pointer" }}>
+                        <button key={id} onClick={() => resolveCategoryChoice(id)} style={{ display: "flex", alignItems: "center", gap: 5, background: t.surfaceAlt, border: `1px solid ${c.color}55`, borderRadius: 20, padding: "6px 12px", color: t.textStrong, fontSize: fs(12), cursor: "pointer" }}>
                           <div style={{ width: 6, height: 6, borderRadius: "50%", background: c.color }} /> {c.label}
                         </button>
                       ))}
                     </div>
-                    <button onClick={() => resolveCategoryChoice("TUTTE")} style={{ width: "100%", background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "8px 0", fontWeight: 700, fontSize: 12.5, cursor: "pointer", marginBottom: 6 }}>
+                    <button onClick={() => resolveCategoryChoice("TUTTE")} style={{ width: "100%", background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "8px 0", fontWeight: 700, fontSize: fs(12.5), cursor: "pointer", marginBottom: 6 }}>
                       {(T[appLanguage] || T.it).splitAll}
                     </button>
-                    <button onClick={() => setPendingCategoryChoice(null)} style={{ width: "100%", background: "none", border: `1px solid ${t.surfaceAltBorder}`, borderRadius: 8, padding: "8px 0", color: t.textMuted, fontSize: 12, cursor: "pointer" }}>{(T[appLanguage] || T.it).cancel}</button>
+                    <button onClick={() => setPendingCategoryChoice(null)} style={{ width: "100%", background: "none", border: `1px solid ${t.surfaceAltBorder}`, borderRadius: 8, padding: "8px 0", color: t.textMuted, fontSize: fs(12), cursor: "pointer" }}>{(T[appLanguage] || T.it).cancel}</button>
                   </div>
                 )}
 
-                {sending && <div style={{ fontSize: 13, color: t.textMuted }}>{(T[appLanguage] || T.it).thinking}</div>}
+                {sending && <div style={{ fontSize: fs(13), color: t.textMuted }}>{(T[appLanguage] || T.it).thinking}</div>}
               </div>
 
-              {error && <div style={{ padding: "0 16px", color: "#FF7A6B", fontSize: 12, marginBottom: 4 }}>{error}</div>}
+              {error && <div style={{ padding: "0 16px", color: "#FF7A6B", fontSize: fs(12), marginBottom: 4 }}>{error}</div>}
 
               <div style={{ display: "flex", gap: 7, padding: "10px 14px 16px", borderTop: `1px solid ${t.surfaceBorder}`, alignItems: "flex-end" }}>
                 <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleFile} />
@@ -1887,7 +1904,7 @@ export default function Finbar() {
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
                   placeholder={listening ? (T[appLanguage] || T.it).listening : (T[appLanguage] || T.it).placeholder}
                   rows={1}
-                  style={{ flex: 1, resize: "none", background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 10, padding: "10px 12px", color: t.textStrong, fontSize: 14 }}
+                  style={{ flex: 1, resize: "none", background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 10, padding: "10px 12px", color: t.textStrong, fontSize: fs(14) }}
                 />
                 <button onClick={send} disabled={sending || !input.trim()} className="icon-btn" aria-label="Invia" style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: input.trim() && !sending ? t.accent : t.surface, color: input.trim() && !sending ? t.onAccent : t.textMuted }}>
                   <Send size={16} />
@@ -1899,14 +1916,14 @@ export default function Finbar() {
           {/* ===== History tab ===== */}
           {tab === "history" && (
             <div ref={tourHistoryRef} className="scrollbar" style={{ flex: 1, overflowY: "auto", padding: "6px 18px 18px" }}>
-              {account.transactions.length === 0 && <div style={{ textAlign: "center", color: t.textMuted, fontSize: 13, marginTop: 40 }}>{ui.historyEmpty}</div>}
+              {account.transactions.length === 0 && <div style={{ textAlign: "center", color: t.textMuted, fontSize: fs(13), marginTop: 40 }}>{ui.historyEmpty}</div>}
               {account.transactions.map((tx) => (
                 <div key={tx.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 4px", borderBottom: `1px solid ${t.surfaceBorder}` }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5 }}>{tx.category}</div>
-                    <div style={{ fontSize: 11.5, color: t.textMuted }}>{tx.date}{tx.note ? " · " + tx.note : ""}</div>
+                    <div style={{ fontSize: fs(13.5) }}>{tx.category}</div>
+                    <div style={{ fontSize: fs(11.5), color: t.textMuted }}>{tx.date}{tx.note ? " · " + tx.note : ""}</div>
                   </div>
-                  <div className="num" style={{ fontSize: 13.5, fontWeight: 600, color: tx.type === "entrata" ? "#2ECC71" : tx.type === "spesa" ? "#FF7A6B" : t.textMuted }}>
+                  <div className="num" style={{ fontSize: fs(13.5), fontWeight: 600, color: tx.type === "entrata" ? "#2ECC71" : tx.type === "spesa" ? "#FF7A6B" : t.textMuted }}>
                     {tx.type === "spesa" ? "−" : tx.type === "entrata" ? "+" : ""}{currency(tx.amount, tx.currency || account.currency)}
                   </div>
                 </div>
@@ -1923,7 +1940,7 @@ export default function Finbar() {
             ].map(({ id, label, icon: Icon }) => (
               <button key={id} className="tab-btn" onClick={() => setTab(id)} style={{ color: tab === id ? t.accent : t.textMuted }}>
                 <Icon size={19} />
-                <span style={{ fontSize: 10.5, fontWeight: 600 }}>{label}</span>
+                <span style={{ fontSize: fs(10.5), fontWeight: 600 }}>{label}</span>
               </button>
             ))}
           </div>
@@ -1932,15 +1949,15 @@ export default function Finbar() {
 
       {/* ===== Account switcher modal ===== */}
       {showAccountSwitcher && (
-        <Modal onClose={() => setShowAccountSwitcher(false)} title={ui.yourAccounts} t={t}>
+        <Modal onClose={() => setShowAccountSwitcher(false)} title={ui.yourAccounts} t={t} fs={fs}>
           {Object.values(accounts).map((a) => (
             <button key={a.id} onClick={() => { persistAccounts(accounts, a.id); setShowAccountSwitcher(false); }}
               style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", background: a.id === activeId ? `${t.accent}18` : t.surface, border: `1px solid ${a.id === activeId ? t.accent : t.surfaceBorder}`, borderRadius: 10, padding: "12px 14px", marginBottom: 8, cursor: "pointer", color: t.textStrong }}>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{a.name}</span>
-              <span className="num" style={{ fontSize: 13, color: t.textMuted }}>{currency(a.totalBalance, a.currency)}</span>
+              <span style={{ fontSize: fs(14), fontWeight: 600 }}>{a.name}</span>
+              <span className="num" style={{ fontSize: fs(13), color: t.textMuted }}>{currency(a.totalBalance, a.currency)}</span>
             </button>
           ))}
-          <button onClick={() => { setShowAccountSwitcher(false); setShowNewAccount(true); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "none", border: `1.5px dashed ${t.surfaceAltBorder}`, borderRadius: 10, padding: "12px 0", color: t.textMuted, fontSize: 13.5, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
+          <button onClick={() => { setShowAccountSwitcher(false); setShowNewAccount(true); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "none", border: `1.5px dashed ${t.surfaceAltBorder}`, borderRadius: 10, padding: "12px 0", color: t.textMuted, fontSize: fs(13.5), fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
             <Plus size={14} /> {ui.newAccountBtn}
           </button>
         </Modal>
@@ -1948,39 +1965,39 @@ export default function Finbar() {
 
       {/* ===== New account modal ===== */}
       {showNewAccount && (
-        <Modal onClose={() => Object.keys(accounts).length > 0 && setShowNewAccount(false)} title={newAccountMode === "create" ? ui.newAccountTitle : ui.restoreTitle} t={t}>
+        <Modal onClose={() => Object.keys(accounts).length > 0 && setShowNewAccount(false)} title={newAccountMode === "create" ? ui.newAccountTitle : ui.restoreTitle} t={t} fs={fs}>
           {newAccountMode === "create" ? (
             <>
-              <NewAccountForm accent={t.accent} t={t} onCreate={createAccount} ui={ui} />
+              <NewAccountForm accent={t.accent} t={t} onCreate={createAccount} ui={ui} fs={fs} />
               <button
                 onClick={() => { setNewAccountMode("restore"); setRestoreError(null); }}
-                style={{ width: "100%", background: "none", border: "none", color: t.textMuted, fontSize: 12.5, cursor: "pointer", textAlign: "center", padding: "6px 0" }}
+                style={{ width: "100%", background: "none", border: "none", color: t.textMuted, fontSize: fs(12.5), cursor: "pointer", textAlign: "center", padding: "6px 0" }}
               >
                 {ui.haveCode} <span style={{ color: t.accent, fontWeight: 600 }}>{ui.recoverData}</span>
               </button>
             </>
           ) : (
             <>
-              <div style={{ fontSize: 12.5, color: t.textMuted, marginBottom: 12, lineHeight: 1.5 }}>
+              <div style={{ fontSize: fs(12.5), color: t.textMuted, marginBottom: 12, lineHeight: 1.5 }}>
                 {ui.restoreDesc} <span className="num">FNX-XXXX-XXXX-XXXX</span>)
               </div>
               <input
                 value={restoreInput}
                 onChange={(e) => setRestoreInput(e.target.value)}
                 placeholder="FNX-XXXX-XXXX-XXXX"
-                style={{ ...inputStyle(t), fontFamily: "'JetBrains Mono', monospace" }}
+                style={{ ...inputStyle(t, fs), fontFamily: "'JetBrains Mono', monospace" }}
               />
-              {restoreError && <div style={{ color: "#FF7A6B", fontSize: 12, marginTop: -8, marginBottom: 12 }}>{restoreError}</div>}
+              {restoreError && <div style={{ color: "#FF7A6B", fontSize: fs(12), marginTop: -8, marginBottom: 12 }}>{restoreError}</div>}
               <button
                 onClick={restoreFromCode}
                 disabled={restoring || !restoreInput.trim()}
-                style={{ width: "100%", background: t.accent, color: t.onAccent, border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 10 }}
+                style={{ width: "100%", background: t.accent, color: t.onAccent, border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 700, fontSize: fs(14), cursor: "pointer", marginBottom: 10 }}
               >
                 {restoring ? ui.restoringBtn : ui.restoreBtn}
               </button>
               <button
                 onClick={() => { setNewAccountMode("create"); setRestoreError(null); }}
-                style={{ width: "100%", background: "none", border: "none", color: t.textMuted, fontSize: 12.5, cursor: "pointer", textAlign: "center", padding: "6px 0" }}
+                style={{ width: "100%", background: "none", border: "none", color: t.textMuted, fontSize: fs(12.5), cursor: "pointer", textAlign: "center", padding: "6px 0" }}
               >
                 {ui.orCreateNew} <span style={{ color: t.accent, fontWeight: 600 }}>{ui.createNewAccount}</span>
               </button>
@@ -1991,15 +2008,15 @@ export default function Finbar() {
 
       {/* ===== Transfer modal ===== */}
       {showTransfer && account && (
-        <Modal onClose={() => setShowTransfer(false)} title={ui.transferTitle} t={t}>
-          <TransferForm accounts={accounts} fromDefault={activeId} accent={t.accent} t={t} onSubmit={transferBetween} ui={ui} />
+        <Modal onClose={() => setShowTransfer(false)} title={ui.transferTitle} t={t} fs={fs}>
+          <TransferForm accounts={accounts} fromDefault={activeId} accent={t.accent} t={t} onSubmit={transferBetween} ui={ui} fs={fs} />
         </Modal>
       )}
 
       {/* ===== Manual transaction form ===== */}
       {showForm && account && (
-        <Modal onClose={() => setShowForm(false)} title={ui.newEntryTitle} t={t}>
-          <TxForm account={account} accent={t.accent} t={t} onSubmit={(payload) => { commitTransaction(payload); setShowForm(false); }} ui={ui} />
+        <Modal onClose={() => setShowForm(false)} title={ui.newEntryTitle} t={t} fs={fs}>
+          <TxForm account={account} accent={t.accent} t={t} onSubmit={(payload) => { commitTransaction(payload); setShowForm(false); }} ui={ui} fs={fs} />
         </Modal>
       )}
 
@@ -2010,12 +2027,12 @@ export default function Finbar() {
           <div style={{ background: t.modalBg, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: 24, width: "100%", maxWidth: 380 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <Languages size={18} color={t.accent} />
-              <h2 className="display" style={{ fontSize: 17, fontWeight: 700, margin: 0, color: t.textStrong }}>Choose your language</h2>
+              <h2 className="display" style={{ fontSize: fs(17), fontWeight: 700, margin: 0, color: t.textStrong }}>Choose your language</h2>
             </div>
-            <div style={{ fontSize: 12.5, color: t.textMuted, marginBottom: 16 }}>Puoi cambiarla in qualsiasi momento dalle Impostazioni.</div>
+            <div style={{ fontSize: fs(12.5), color: t.textMuted, marginBottom: 16 }}>Puoi cambiarla in qualsiasi momento dalle Impostazioni.</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {Object.entries(LANGUAGES).map(([key, name]) => (
-                <button key={key} onClick={() => changeLanguage(key)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 16px", borderRadius: 10, border: `1.5px solid ${t.surfaceBorder}`, background: t.surfaceRow, color: t.textStrong, fontSize: 14.5, fontWeight: 500, cursor: "pointer" }}>
+                <button key={key} onClick={() => changeLanguage(key)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 16px", borderRadius: 10, border: `1.5px solid ${t.surfaceBorder}`, background: t.surfaceRow, color: t.textStrong, fontSize: fs(14.5), fontWeight: 500, cursor: "pointer" }}>
                   {name}
                 </button>
               ))}
@@ -2032,34 +2049,34 @@ export default function Finbar() {
           <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,20,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30, padding: 18 }}>
             <div style={{ background: t.modalBg, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: 20, width: "100%", maxWidth: 440, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", gap: 8, marginBottom: 12, flexShrink: 0 }}>
-                <button onClick={() => setLegalGateTab("privacy")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${legalGateTab === "privacy" ? t.accent : t.surfaceBorder}`, background: legalGateTab === "privacy" ? t.surfaceRow : "transparent", color: legalGateTab === "privacy" ? t.accent : t.textMuted, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                <button onClick={() => setLegalGateTab("privacy")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${legalGateTab === "privacy" ? t.accent : t.surfaceBorder}`, background: legalGateTab === "privacy" ? t.surfaceRow : "transparent", color: legalGateTab === "privacy" ? t.accent : t.textMuted, fontSize: fs(12.5), fontWeight: 700, cursor: "pointer" }}>
                   {ui.legalTabPrivacy}
                 </button>
-                <button onClick={() => setLegalGateTab("terms")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${legalGateTab === "terms" ? t.accent : t.surfaceBorder}`, background: legalGateTab === "terms" ? t.surfaceRow : "transparent", color: legalGateTab === "terms" ? t.accent : t.textMuted, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                <button onClick={() => setLegalGateTab("terms")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${legalGateTab === "terms" ? t.accent : t.surfaceBorder}`, background: legalGateTab === "terms" ? t.surfaceRow : "transparent", color: legalGateTab === "terms" ? t.accent : t.textMuted, fontSize: fs(12.5), fontWeight: 700, cursor: "pointer" }}>
                   {ui.legalTabTerms}
                 </button>
               </div>
               <div style={{ flex: 1, overflowY: "auto", paddingRight: 4, marginBottom: 12 }}>
-                <h2 className="display" style={{ fontSize: 15, fontWeight: 700, margin: "0 0 4px", color: t.textStrong }}>{sectionTitle}</h2>
-                <div style={{ fontSize: 10.5, color: t.textMuted, marginBottom: legal.note ? 4 : 12 }}>{legal.updated}</div>
-                {legal.note && <div style={{ fontSize: 10.5, color: "#F0B429", marginBottom: 12, fontStyle: "italic" }}>{legal.note}</div>}
+                <h2 className="display" style={{ fontSize: fs(15), fontWeight: 700, margin: "0 0 4px", color: t.textStrong }}>{sectionTitle}</h2>
+                <div style={{ fontSize: fs(10.5), color: t.textMuted, marginBottom: legal.note ? 4 : 12 }}>{legal.updated}</div>
+                {legal.note && <div style={{ fontSize: fs(10.5), color: "#F0B429", marginBottom: 12, fontStyle: "italic" }}>{legal.note}</div>}
                 {sections.map((s, i) => (
                   <div key={i} style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: t.textStrong, marginBottom: 5 }}>{s.h}</div>
+                    <div style={{ fontSize: fs(12.5), fontWeight: 700, color: t.textStrong, marginBottom: 5 }}>{s.h}</div>
                     {s.p.map((para, j) => (
-                      <div key={j} style={{ fontSize: 11.5, color: t.textPrimary, lineHeight: 1.6, marginBottom: 6 }}>{para}</div>
+                      <div key={j} style={{ fontSize: fs(11.5), color: t.textPrimary, lineHeight: 1.6, marginBottom: 6 }}>{para}</div>
                     ))}
                   </div>
                 ))}
               </div>
-              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 11.5, color: t.textPrimary, marginBottom: 12, cursor: "pointer", flexShrink: 0 }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: fs(11.5), color: t.textPrimary, marginBottom: 12, cursor: "pointer", flexShrink: 0 }}>
                 <input type="checkbox" checked={legalGateChecked} onChange={(e) => setLegalGateChecked(e.target.checked)} style={{ marginTop: 2, flexShrink: 0 }} />
                 <span>{ui.legalCheckboxLabel}</span>
               </label>
               <button
                 onClick={acceptLegal}
                 disabled={!legalGateChecked}
-                style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: legalGateChecked ? t.accent : t.surfaceBorder, color: legalGateChecked ? t.onAccent : t.textMuted, fontSize: 13.5, fontWeight: 700, cursor: legalGateChecked ? "pointer" : "not-allowed", flexShrink: 0 }}
+                style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: legalGateChecked ? t.accent : t.surfaceBorder, color: legalGateChecked ? t.onAccent : t.textMuted, fontSize: fs(13.5), fontWeight: 700, cursor: legalGateChecked ? "pointer" : "not-allowed", flexShrink: 0 }}
               >
                 {ui.legalContinueBtn}
               </button>
@@ -2098,14 +2115,14 @@ export default function Finbar() {
             )}
             <div style={{ position: "fixed", top: r.top - pad, left: r.left - pad, width: r.width + pad * 2, height: r.height + pad * 2, border: `2px solid ${t.accent}`, borderRadius: 14, boxShadow: `0 0 0 4px ${t.accent}40`, pointerEvents: "none", zIndex: 42, transition: "top 0.2s, left 0.2s, width 0.2s, height 0.2s" }} />
             <div style={{ position: "fixed", top: tooltipTop, left: tooltipLeft, width: tooltipWidth, background: t.modalBg, border: `1px solid ${t.modalBorder}`, borderRadius: 14, padding: 16, zIndex: 43, boxShadow: "0 8px 30px rgba(0,0,0,0.4)" }}>
-              <div style={{ fontSize: 10.5, color: t.textMuted, marginBottom: 6 }}>{tourStep + 1} / {steps.length}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: t.textStrong, marginBottom: 6 }}>{step.title}</div>
-              <div style={{ fontSize: 12.5, color: t.textPrimary, lineHeight: 1.5, marginBottom: 14 }}>{step.text}</div>
+              <div style={{ fontSize: fs(10.5), color: t.textMuted, marginBottom: 6 }}>{tourStep + 1} / {steps.length}</div>
+              <div style={{ fontSize: fs(14), fontWeight: 700, color: t.textStrong, marginBottom: 6 }}>{step.title}</div>
+              <div style={{ fontSize: fs(12.5), color: t.textPrimary, lineHeight: 1.5, marginBottom: 14 }}>{step.text}</div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={tourSkip} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${t.surfaceBorder}`, background: "transparent", color: t.textMuted, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+                <button onClick={tourSkip} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${t.surfaceBorder}`, background: "transparent", color: t.textMuted, fontSize: fs(12.5), fontWeight: 600, cursor: "pointer" }}>
                   {ui.obSkip}
                 </button>
-                <button onClick={tourNext} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: "none", background: t.accent, color: t.onAccent, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                <button onClick={tourNext} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: "none", background: t.accent, color: t.onAccent, fontSize: fs(12.5), fontWeight: 700, cursor: "pointer" }}>
                   {isLast ? ui.obStart : ui.obNext}
                 </button>
               </div>
@@ -2119,18 +2136,18 @@ export default function Finbar() {
           <div style={{ background: t.modalBg, border: "1.5px solid #4A2A2A", borderRadius: 18, padding: 24, width: "100%", maxWidth: 380 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
               <Trash2 size={18} color="#FF7A6B" />
-              <h2 className="display" style={{ fontSize: 16, fontWeight: 700, margin: 0, color: t.textStrong }}>{ui.deleteConfirmTitle}</h2>
+              <h2 className="display" style={{ fontSize: fs(16), fontWeight: 700, margin: 0, color: t.textStrong }}>{ui.deleteConfirmTitle}</h2>
             </div>
-            <div style={{ fontSize: 12.5, color: "#FF9A8D", lineHeight: 1.6, marginBottom: 20, background: "rgba(255,122,107,0.08)", border: "1px solid #4A2A2A", borderRadius: 10, padding: 12 }}>
+            <div style={{ fontSize: fs(12.5), color: "#FF9A8D", lineHeight: 1.6, marginBottom: 20, background: "rgba(255,122,107,0.08)", border: "1px solid #4A2A2A", borderRadius: 10, padding: 12 }}>
               {ui.deleteConfirmWarning}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => setConfirmDeleteAccount(false)} style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: `1.5px solid ${t.surfaceBorder}`, background: "transparent", color: t.textMuted, fontSize: 13.5, fontWeight: 500, cursor: "pointer" }}>
+              <button onClick={() => setConfirmDeleteAccount(false)} style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: `1.5px solid ${t.surfaceBorder}`, background: "transparent", color: t.textMuted, fontSize: fs(13.5), fontWeight: 500, cursor: "pointer" }}>
                 {ui.deleteConfirmCancel}
               </button>
               <button
                 onClick={() => { deleteAccount(account.id); setConfirmDeleteAccount(false); setShowSettings(false); }}
-                style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "none", background: "#FF7A6B", color: "#1A0D0B", fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "none", background: "#FF7A6B", color: "#1A0D0B", fontSize: fs(13.5), fontWeight: 700, cursor: "pointer" }}
               >
                 {ui.deleteConfirmBtn}
               </button>
@@ -2147,6 +2164,7 @@ export default function Finbar() {
             settingsSection === "sync" ? ui.syncCodeTitle :
             settingsSection === "language" ? ui.languageTitle :
             settingsSection === "theme" ? ui.themeTitle :
+            settingsSection === "textSize" ? ui.textSizeTitle :
             settingsSection === "currency" ? ui.currencyTitle :
             settingsSection === "trend" ? ui.monthlyTrend :
             settingsSection === "categories" ? ui.categoriesTitle :
@@ -2155,14 +2173,16 @@ export default function Finbar() {
             ui.settingsTitle
           }
           t={t}
+          fs={fs}
         >
           {settingsSection === null && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ fontSize: 11.5, color: t.textMuted, margin: "0 2px 4px" }}>{ui.settingsMenuHint}</div>
+              <div style={{ fontSize: fs(11.5), color: t.textMuted, margin: "0 2px 4px" }}>{ui.settingsMenuHint}</div>
               {[
                 { key: "sync", label: ui.syncCodeTitle, icon: KeyRound },
                 { key: "language", label: ui.languageTitle, icon: Languages },
                 { key: "theme", label: ui.themeTitle, icon: Palette },
+                { key: "textSize", label: ui.textSizeTitle, icon: Type },
                 ...(account ? [{ key: "currency", label: ui.currencyTitle, icon: Wallet }] : []),
                 ...(account && monthlyData.length > 0 ? [{ key: "trend", label: ui.monthlyTrend, icon: TrendingUp }] : []),
                 ...(account ? [{ key: "categories", label: ui.categoriesTitle, icon: Tag }] : []),
@@ -2175,14 +2195,14 @@ export default function Finbar() {
                   style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "13px 12px", borderRadius: 12, border: `1px solid ${t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}
                 >
                   <item.icon size={16} color={t.textMuted} style={{ flexShrink: 0 }} />
-                  <span style={{ flex: 1, textAlign: "left", fontSize: 13.5, color: t.textStrong, fontWeight: 600 }}>{item.label}</span>
+                  <span style={{ flex: 1, textAlign: "left", fontSize: fs(13.5), color: t.textStrong, fontWeight: 600 }}>{item.label}</span>
                   <ChevronRight size={16} color={t.textMuted} />
                 </button>
               ))}
               {account && (
                 <button onClick={() => setConfirmDeleteAccount(true)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "13px 12px", borderRadius: 12, border: "1.5px solid #4A2A2A", background: "transparent", color: "#FF7A6B", cursor: "pointer", marginTop: 6 }}>
                   <Trash2 size={16} style={{ flexShrink: 0 }} />
-                  <span style={{ flex: 1, textAlign: "left", fontSize: 13.5, fontWeight: 600 }}>{ui.deleteAccount}</span>
+                  <span style={{ flex: 1, textAlign: "left", fontSize: fs(13.5), fontWeight: 600 }}>{ui.deleteAccount}</span>
                 </button>
               )}
             </div>
@@ -2191,7 +2211,7 @@ export default function Finbar() {
           {settingsSection === "sync" && (
             <>
               <div style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 12, padding: 14, marginBottom: 10 }}>
-                <div style={{ fontSize: 11.5, color: t.textMuted, marginBottom: 8, lineHeight: 1.5 }}>
+                <div style={{ fontSize: fs(11.5), color: t.textMuted, marginBottom: 8, lineHeight: 1.5 }}>
                   {ui.syncCodeDesc}
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -2201,14 +2221,14 @@ export default function Finbar() {
                     value={syncCode || "…"}
                     onFocus={(e) => e.target.select()}
                     className="num"
-                    style={{ flex: 1, background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "10px 12px", fontSize: 13.5, letterSpacing: "0.03em", color: t.textStrong }}
+                    style={{ flex: 1, background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "10px 12px", fontSize: fs(13.5), letterSpacing: "0.03em", color: t.textStrong }}
                   />
                   <button onClick={copySyncCode} className="icon-btn" aria-label="Copy code" style={{ width: 40, height: 40, borderRadius: 8, background: copied ? "#2ECC71" : t.surfaceAlt, border: `1px solid ${t.surfaceAltBorder}`, flexShrink: 0, color: copied ? t.onAccent : t.textPrimary }}>
                     {copied ? <Check size={16} /> : <Copy size={16} />}
                   </button>
                 </div>
-                <div style={{ fontSize: 10.5, color: "#576073", marginTop: 6 }}>{ui.copyFallback}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 11, color: syncStatus === "error" ? "#FF7A6B" : syncStatus === "syncing" ? "#F0B429" : t.textMuted }}>
+                <div style={{ fontSize: fs(10.5), color: "#576073", marginTop: 6 }}>{ui.copyFallback}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: fs(11), color: syncStatus === "error" ? "#FF7A6B" : syncStatus === "syncing" ? "#F0B429" : t.textMuted }}>
                   {syncStatus === "syncing" ? <RefreshCw size={11} /> : <Cloud size={11} />}
                   {syncStatus === "synced" && ui.syncedLabel}
                   {syncStatus === "syncing" && ui.syncingLabel}
@@ -2218,19 +2238,19 @@ export default function Finbar() {
               </div>
 
               <div style={{ background: t.surfaceRow, border: `1.5px dashed ${t.surfaceAltBorder}`, borderRadius: 12, padding: 14 }}>
-                <div style={{ fontSize: 11.5, color: t.textMuted, marginBottom: 8 }}>{ui.haveCodeOtherDevice}</div>
+                <div style={{ fontSize: fs(11.5), color: t.textMuted, marginBottom: 8 }}>{ui.haveCodeOtherDevice}</div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <input
                     value={restoreInput}
                     onChange={(e) => setRestoreInput(e.target.value)}
                     placeholder="FNX-XXXX-XXXX-XXXX"
-                    style={{ flex: 1, background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "9px 11px", color: t.textStrong, fontSize: 12.5, fontFamily: "'JetBrains Mono', monospace" }}
+                    style={{ flex: 1, background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "9px 11px", color: t.textStrong, fontSize: fs(12.5), fontFamily: "'JetBrains Mono', monospace" }}
                   />
-                  <button onClick={restoreFromCode} disabled={restoring || !restoreInput.trim()} style={{ background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "0 16px", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+                  <button onClick={restoreFromCode} disabled={restoring || !restoreInput.trim()} style={{ background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "0 16px", fontWeight: 700, fontSize: fs(12.5), cursor: "pointer" }}>
                     {restoring ? "…" : ui.recoverBtn}
                   </button>
                 </div>
-                {restoreError && <div style={{ color: "#FF7A6B", fontSize: 11.5, marginTop: 6 }}>{restoreError}</div>}
+                {restoreError && <div style={{ color: "#FF7A6B", fontSize: fs(11.5), marginTop: 6 }}>{restoreError}</div>}
               </div>
             </>
           )}
@@ -2239,7 +2259,7 @@ export default function Finbar() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {Object.entries(LANGUAGES).map(([key, name]) => (
                 <button key={key} onClick={() => changeLanguage(key)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${appLanguage === key ? t.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}>
-                  <span style={{ fontSize: 12.5, color: appLanguage === key ? t.accent : t.textStrong }}>{name}</span>
+                  <span style={{ fontSize: fs(12.5), color: appLanguage === key ? t.accent : t.textStrong }}>{name}</span>
                 </button>
               ))}
             </div>
@@ -2250,9 +2270,34 @@ export default function Finbar() {
               {Object.entries(THEMES).map(([key, th]) => (
                 <button key={key} onClick={() => changeTheme(key)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${themeKey === key ? th.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}>
                   <div style={{ width: 16, height: 16, borderRadius: "50%", background: th.accent }} />
-                  <span style={{ fontSize: 12.5, color: t.textStrong }}>{th.name}</span>
+                  <span style={{ fontSize: fs(12.5), color: t.textStrong }}>{th.name}</span>
                 </button>
               ))}
+            </div>
+          )}
+
+          {settingsSection === "textSize" && (
+            <div>
+              <div style={{ fontSize: fs(11.5), color: t.textMuted, marginBottom: 12, lineHeight: 1.5 }}>{ui.textSizeDesc}</div>
+              <div style={{ background: t.surfaceRow, border: `1px solid ${t.surfaceBorder}`, borderRadius: 12, padding: 14, marginBottom: 14, textAlign: "center" }}>
+                <div style={{ fontSize: fs(12), color: t.textMuted }}>{ui.totalBalance}</div>
+                <div className="num" style={{ fontSize: fs(24), fontWeight: 700, color: t.textStrong, marginTop: 4 }}>
+                  {currency(1234.56, account?.currency || "EUR")}
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {TEXT_SCALE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => changeTextScale(opt)}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${textScale === opt ? t.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer" }}
+                  >
+                    <span style={{ fontSize: fs(12.5), color: textScale === opt ? t.accent : t.textStrong, fontWeight: textScale === opt ? 700 : 500 }}>
+                      {Math.round(opt * 100)}%
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -2261,17 +2306,17 @@ export default function Finbar() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {Object.entries(CURRENCIES).map(([code, c]) => (
                   <button key={code} disabled={currencyConverting} onClick={() => changeCurrency(code)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${(account.currency || "EUR") === code ? t.accent : t.surfaceBorder}`, background: t.surfaceRow, cursor: currencyConverting ? "wait" : "pointer", opacity: currencyConverting ? 0.6 : 1 }}>
-                    <span style={{ fontSize: 12.5, color: (account.currency || "EUR") === code ? t.accent : t.textStrong }}>{c.label}</span>
+                    <span style={{ fontSize: fs(12.5), color: (account.currency || "EUR") === code ? t.accent : t.textStrong }}>{c.label}</span>
                   </button>
                 ))}
               </div>
               {currencyConverting && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: t.textMuted, marginTop: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: fs(11.5), color: t.textMuted, marginTop: 10 }}>
                   <RefreshCw size={12} /> {ui.currencyConverting}
                 </div>
               )}
               {currencyError && (
-                <div style={{ fontSize: 12, color: "#FF7A6B", background: "rgba(255,122,107,0.08)", border: "1px solid #4A2A2A", borderRadius: 8, padding: "8px 10px", marginTop: 10 }}>
+                <div style={{ fontSize: fs(12), color: "#FF7A6B", background: "rgba(255,122,107,0.08)", border: "1px solid #4A2A2A", borderRadius: 8, padding: "8px 10px", marginTop: 10 }}>
                   {currencyError}
                 </div>
               )}
@@ -2280,7 +2325,7 @@ export default function Finbar() {
 
           {settingsSection === "trend" && account && monthlyData.length > 0 && (
             <>
-              <div style={{ fontSize: 12, color: t.textMuted, margin: "0 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: fs(12), color: t.textMuted, margin: "0 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span>{account.name}</span>
                 {monthlyChange !== null && (
                   <span style={{ color: monthlyChange >= 20 ? "#2ECC71" : monthlyChange >= 0 ? "#F0B429" : "#FF7A6B", fontWeight: 700 }}>
@@ -2294,13 +2339,13 @@ export default function Finbar() {
                     <CartesianGrid stroke={t.modalBorder} strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="month" tick={{ fill: t.textMuted, fontSize: 10 }} axisLine={{ stroke: t.modalBorder }} tickLine={false} />
                     <YAxis tick={{ fill: t.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, fontSize: 12 }} formatter={(v) => currency(v, account.currency)} />
+                    <Tooltip contentStyle={{ background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, fontSize: fs(12) }} formatter={(v) => currency(v, account.currency)} />
                     <Line type="monotone" dataKey="net" stroke={t.accent} strokeWidth={2.5} dot={{ r: 3, fill: t.accent }} name={ui.netMonthly} />
                     <Line type="monotone" dataKey="target" stroke={t.accent2} strokeWidth={1.5} strokeDasharray="5 4" dot={false} name={ui.threshold20} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              <div style={{ display: "flex", gap: 14, fontSize: 11, color: t.textMuted }}>
+              <div style={{ display: "flex", gap: 14, fontSize: fs(11), color: t.textMuted }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 12, height: 2, background: t.accent }} /> {ui.netMonthly}</span>
                 <span style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 12, height: 2, background: t.accent2, opacity: 0.7 }} /> {ui.threshold20}</span>
               </div>
@@ -2309,7 +2354,7 @@ export default function Finbar() {
 
           {settingsSection === "categories" && account && (
             <>
-              <div ref={tourCategoriesRef} style={{ fontSize: 12, color: t.textMuted, margin: "0 0 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div ref={tourCategoriesRef} style={{ fontSize: fs(12), color: t.textMuted, margin: "0 0 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>{account.name}</span>
                 {(() => {
                   const total = Math.round(Object.values(catDraft || account.categories).reduce((s, c) => s + (Number(c.pct) || 0), 0));
@@ -2323,32 +2368,32 @@ export default function Finbar() {
                     <input
                       value={c.label}
                       onChange={(e) => renameCategoryDraft(id, e.target.value)}
-                      style={{ flex: 1, background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 6, padding: "6px 8px", color: t.textStrong, fontSize: 12.5 }}
+                      style={{ flex: 1, background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 6, padding: "6px 8px", color: t.textStrong, fontSize: fs(12.5) }}
                     />
-                    <input type="number" min="0" max="100" value={c.pct} onChange={(e) => updateCategoryPctDraft(id, parseFloat(e.target.value) || 0)} style={{ width: 52, background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 6, padding: "6px 6px", color: t.textStrong, fontSize: 12.5, textAlign: "right" }} />
-                    <span style={{ fontSize: 11, color: t.textMuted }}>%</span>
+                    <input type="number" min="0" max="100" value={c.pct} onChange={(e) => updateCategoryPctDraft(id, parseFloat(e.target.value) || 0)} style={{ width: 52, background: t.surface, border: `1px solid ${t.surfaceBorder}`, borderRadius: 6, padding: "6px 6px", color: t.textStrong, fontSize: fs(12.5), textAlign: "right" }} />
+                    <span style={{ fontSize: fs(11), color: t.textMuted }}>%</span>
                     <button onClick={() => deleteCategoryDraft(id)} className="icon-btn" aria-label="Delete category" style={{ color: t.textMuted }}>
                       <Trash2 size={13} />
                     </button>
                   </div>
                 ))}
               </div>
-              <AddCategoryRow accent={t.accent} t={t} onAdd={addCategoryDraft} ui={ui} />
+              <AddCategoryRow accent={t.accent} t={t} onAdd={addCategoryDraft} ui={ui} fs={fs} />
               {catSaveError && (
-                <div style={{ fontSize: 12, color: "#FF7A6B", background: "rgba(255,122,107,0.08)", border: "1px solid #4A2A2A", borderRadius: 8, padding: "8px 10px", marginTop: 10 }}>
+                <div style={{ fontSize: fs(12), color: "#FF7A6B", background: "rgba(255,122,107,0.08)", border: "1px solid #4A2A2A", borderRadius: 8, padding: "8px 10px", marginTop: 10 }}>
                   {catSaveError}
                 </div>
               )}
-              <button onClick={saveCategoriesDraft} style={{ width: "100%", padding: "11px 0", borderRadius: 10, border: "none", background: t.accent, color: t.onAccent, fontSize: 13, fontWeight: 700, cursor: "pointer", marginTop: 10 }}>
+              <button onClick={saveCategoriesDraft} style={{ width: "100%", padding: "11px 0", borderRadius: 10, border: "none", background: t.accent, color: t.onAccent, fontSize: fs(13), fontWeight: 700, cursor: "pointer", marginTop: 10 }}>
                 {ui.saveCategoriesBtn}
               </button>
 
               {Object.keys(account.learnedTerms || {}).length > 0 && (
                 <>
-                  <div style={{ fontSize: 12, color: t.textMuted, margin: "18px 0 8px" }}>{ui.learnedWords}</div>
+                  <div style={{ fontSize: fs(12), color: t.textMuted, margin: "18px 0 8px" }}>{ui.learnedWords}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                     {Object.entries(account.learnedTerms || {}).map(([word, catId]) => (
-                      <span key={word} style={{ display: "flex", alignItems: "center", gap: 6, background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 16, padding: "5px 6px 5px 10px", fontSize: 11.5, color: t.textPrimary }}>
+                      <span key={word} style={{ display: "flex", alignItems: "center", gap: 6, background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 16, padding: "5px 6px 5px 10px", fontSize: fs(11.5), color: t.textPrimary }}>
                         "{word}" → {account.categories[catId]?.label || "—"}
                         <button onClick={() => forgetLearnedTerm(word)} className="icon-btn" aria-label="Forget" style={{ color: t.textMuted }}>
                           <X size={12} />
@@ -2361,10 +2406,10 @@ export default function Finbar() {
 
               {Object.keys(account.customTypeWords || {}).length > 0 && (
                 <>
-                  <div style={{ fontSize: 12, color: t.textMuted, margin: "18px 0 8px" }}>{ui.customWords}</div>
+                  <div style={{ fontSize: fs(12), color: t.textMuted, margin: "18px 0 8px" }}>{ui.customWords}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
                     {Object.entries(account.customTypeWords || {}).map(([word, type]) => (
-                      <span key={word} style={{ display: "flex", alignItems: "center", gap: 6, background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 16, padding: "5px 6px 5px 10px", fontSize: 11.5, color: t.textPrimary }}>
+                      <span key={word} style={{ display: "flex", alignItems: "center", gap: 6, background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 16, padding: "5px 6px 5px 10px", fontSize: fs(11.5), color: t.textPrimary }}>
                         "{word}" → {type === "entrata" ? (T[appLanguage] || T.it).income : (T[appLanguage] || T.it).expense}
                         <button onClick={() => forgetCustomTypeWord(word)} className="icon-btn" aria-label="Forget" style={{ color: t.textMuted }}>
                           <X size={12} />
@@ -2379,9 +2424,9 @@ export default function Finbar() {
 
           {settingsSection === "recurring" && account && (
             <>
-              <div style={{ fontSize: 11.5, color: t.textMuted, marginBottom: 12 }}>{ui.recurringTitle}</div>
+              <div style={{ fontSize: fs(11.5), color: t.textMuted, marginBottom: 12 }}>{ui.recurringTitle}</div>
               {(account.recurring || []).length === 0 && (
-                <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 10 }}>{ui.recurringEmpty}</div>
+                <div style={{ fontSize: fs(12), color: t.textMuted, marginBottom: 10 }}>{ui.recurringEmpty}</div>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
                 {(account.recurring || []).map((r) => {
@@ -2391,13 +2436,13 @@ export default function Finbar() {
                     <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 10, padding: "10px 12px" }}>
                       {isSpesa ? <TrendingDown size={15} color="#FF7A6B" style={{ flexShrink: 0 }} /> : <TrendingUp size={15} color="#2ECC71" style={{ flexShrink: 0 }} />}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>{r.label}{r.kind ? ` · ${RECURRING_KINDS[r.kind]}` : ""}</div>
-                        <div style={{ fontSize: 11, color: t.textMuted }}>
+                        <div style={{ fontSize: fs(13), fontWeight: 600 }}>{r.label}{r.kind ? ` · ${RECURRING_KINDS[r.kind]}` : ""}</div>
+                        <div style={{ fontSize: fs(11), color: t.textMuted }}>
                           {freqLabel} · {r.category === "TUTTE" ? ui.allCategoriesSplit : account.categories[r.category]?.label || r.category}
                           {r.lastAppliedDate ? ` · ${ui.lastRun}: ${r.lastAppliedDate}` : ` · ${ui.notActiveYet}`}
                         </div>
                       </div>
-                      <span className="num" style={{ fontSize: 13, fontWeight: 700, color: isSpesa ? "#FF7A6B" : "#2ECC71" }}>{isSpesa ? "−" : "+"}{currency(r.amount, account.currency)}</span>
+                      <span className="num" style={{ fontSize: fs(13), fontWeight: 700, color: isSpesa ? "#FF7A6B" : "#2ECC71" }}>{isSpesa ? "−" : "+"}{currency(r.amount, account.currency)}</span>
                       <button onClick={() => deleteRecurring(r.id)} className="icon-btn" aria-label="Delete recurring entry" style={{ color: t.textMuted }}>
                         <Trash2 size={13} />
                       </button>
@@ -2405,7 +2450,7 @@ export default function Finbar() {
                   );
                 })}
               </div>
-              <RecurringForm accent={t.accent} t={t} categories={account.categories} onAdd={addRecurring} ui={ui} />
+              <RecurringForm accent={t.accent} t={t} categories={account.categories} onAdd={addRecurring} ui={ui} fs={fs} />
             </>
           )}
 
@@ -2416,21 +2461,21 @@ export default function Finbar() {
             return (
               <>
                 <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                  <button onClick={() => setSettingsLegalTab("privacy")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${settingsLegalTab === "privacy" ? t.accent : t.surfaceBorder}`, background: settingsLegalTab === "privacy" ? t.surfaceRow : "transparent", color: settingsLegalTab === "privacy" ? t.accent : t.textMuted, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                  <button onClick={() => setSettingsLegalTab("privacy")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${settingsLegalTab === "privacy" ? t.accent : t.surfaceBorder}`, background: settingsLegalTab === "privacy" ? t.surfaceRow : "transparent", color: settingsLegalTab === "privacy" ? t.accent : t.textMuted, fontSize: fs(12.5), fontWeight: 700, cursor: "pointer" }}>
                     {ui.legalTabPrivacy}
                   </button>
-                  <button onClick={() => setSettingsLegalTab("terms")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${settingsLegalTab === "terms" ? t.accent : t.surfaceBorder}`, background: settingsLegalTab === "terms" ? t.surfaceRow : "transparent", color: settingsLegalTab === "terms" ? t.accent : t.textMuted, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                  <button onClick={() => setSettingsLegalTab("terms")} style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: `1.5px solid ${settingsLegalTab === "terms" ? t.accent : t.surfaceBorder}`, background: settingsLegalTab === "terms" ? t.surfaceRow : "transparent", color: settingsLegalTab === "terms" ? t.accent : t.textMuted, fontSize: fs(12.5), fontWeight: 700, cursor: "pointer" }}>
                     {ui.legalTabTerms}
                   </button>
                 </div>
-                <h2 className="display" style={{ fontSize: 15, fontWeight: 700, margin: "0 0 4px", color: t.textStrong }}>{sectionTitle}</h2>
-                <div style={{ fontSize: 10.5, color: t.textMuted, marginBottom: legal.note ? 4 : 12 }}>{legal.updated}</div>
-                {legal.note && <div style={{ fontSize: 10.5, color: "#F0B429", marginBottom: 12, fontStyle: "italic" }}>{legal.note}</div>}
+                <h2 className="display" style={{ fontSize: fs(15), fontWeight: 700, margin: "0 0 4px", color: t.textStrong }}>{sectionTitle}</h2>
+                <div style={{ fontSize: fs(10.5), color: t.textMuted, marginBottom: legal.note ? 4 : 12 }}>{legal.updated}</div>
+                {legal.note && <div style={{ fontSize: fs(10.5), color: "#F0B429", marginBottom: 12, fontStyle: "italic" }}>{legal.note}</div>}
                 {sections.map((s, i) => (
                   <div key={i} style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: t.textStrong, marginBottom: 5 }}>{s.h}</div>
+                    <div style={{ fontSize: fs(12.5), fontWeight: 700, color: t.textStrong, marginBottom: 5 }}>{s.h}</div>
                     {s.p.map((para, j) => (
-                      <div key={j} style={{ fontSize: 11.5, color: t.textPrimary, lineHeight: 1.6, marginBottom: 6 }}>{para}</div>
+                      <div key={j} style={{ fontSize: fs(11.5), color: t.textPrimary, lineHeight: 1.6, marginBottom: 6 }}>{para}</div>
                     ))}
                   </div>
                 ))}
@@ -2443,7 +2488,7 @@ export default function Finbar() {
   );
 }
 
-function Modal({ onClose, onBack, title, children, t }) {
+function Modal({ onClose, onBack, title, children, t, fs = (px) => px }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(8,10,20,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 20 }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: t.modalBg, width: "100%", maxWidth: 480, borderRadius: "18px 18px 0 0", padding: "18px 18px 26px", maxHeight: "85vh", overflowY: "auto", border: `1px solid ${t.modalBorder}`, borderBottom: "none" }}>
@@ -2454,7 +2499,7 @@ function Modal({ onClose, onBack, title, children, t }) {
                 <ChevronLeft size={20} />
               </button>
             )}
-            <h2 className="display" style={{ fontSize: 17, fontWeight: 700, margin: 0, color: t.textStrong }}>{title}</h2>
+            <h2 className="display" style={{ fontSize: fs(17), fontWeight: 700, margin: 0, color: t.textStrong }}>{title}</h2>
           </div>
           <button onClick={onClose} className="icon-btn" style={{ color: t.textMuted }}><X size={19} /></button>
         </div>
@@ -2464,28 +2509,28 @@ function Modal({ onClose, onBack, title, children, t }) {
   );
 }
 
-function NewAccountForm({ accent, t, onCreate, ui }) {
+function NewAccountForm({ accent, t, onCreate, ui, fs = (px) => px }) {
   const [name, setName] = useState("");
   const [balance, setBalance] = useState("");
   const [currencyCode, setCurrencyCode] = useState("EUR");
   return (
     <div>
-      <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 5 }}>{ui.accountName}</label>
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder={ui.accountNamePh} style={inputStyle(t)} />
-      <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 5 }}>{ui.currencyLabel}</label>
-      <select value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} style={selectStyle(t)}>
+      <label style={{ display: "block", fontSize: fs(12), color: t.textMuted, marginBottom: 5 }}>{ui.accountName}</label>
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder={ui.accountNamePh} style={inputStyle(t, fs)} />
+      <label style={{ display: "block", fontSize: fs(12), color: t.textMuted, marginBottom: 5 }}>{ui.currencyLabel}</label>
+      <select value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} style={selectStyle(t, fs)}>
         {Object.entries(CURRENCIES).map(([code, c]) => <option key={code} value={code}>{c.label}</option>)}
       </select>
-      <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 5 }}>{ui.initialBalance} ({CURRENCIES[currencyCode].symbol})</label>
-      <input inputMode="decimal" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="0,00" style={{ ...inputStyle(t), fontFamily: "'JetBrains Mono', monospace" }} />
-      <button onClick={() => onCreate(name.trim() || "Conto", parseFloat(balance.replace(",", ".")) || 0, currencyCode)} style={{ width: "100%", background: accent, color: t.onAccent, border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+      <label style={{ display: "block", fontSize: fs(12), color: t.textMuted, marginBottom: 5 }}>{ui.initialBalance} ({CURRENCIES[currencyCode].symbol})</label>
+      <input inputMode="decimal" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="0,00" style={{ ...inputStyle(t, fs), fontFamily: "'JetBrains Mono', monospace" }} />
+      <button onClick={() => onCreate(name.trim() || "Conto", parseFloat(balance.replace(",", ".")) || 0, currencyCode)} style={{ width: "100%", background: accent, color: t.onAccent, border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 700, fontSize: fs(14), cursor: "pointer" }}>
         {ui.createAccountBtn}
       </button>
     </div>
   );
 }
 
-function TransferForm({ accounts, fromDefault, accent, t, onSubmit, ui }) {
+function TransferForm({ accounts, fromDefault, accent, t, onSubmit, ui, fs = (px) => px }) {
   const ids = Object.keys(accounts);
   const [from, setFrom] = useState(fromDefault);
   const [to, setTo] = useState(ids.find((i) => i !== fromDefault) || "");
@@ -2493,24 +2538,24 @@ function TransferForm({ accounts, fromDefault, accent, t, onSubmit, ui }) {
   const fromCur = CURRENCIES[accounts[from]?.currency || "EUR"].symbol;
   return (
     <div>
-      <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 5 }}>{ui.from}</label>
-      <select value={from} onChange={(e) => setFrom(e.target.value)} style={selectStyle(t)}>
+      <label style={{ display: "block", fontSize: fs(12), color: t.textMuted, marginBottom: 5 }}>{ui.from}</label>
+      <select value={from} onChange={(e) => setFrom(e.target.value)} style={selectStyle(t, fs)}>
         {ids.map((id) => <option key={id} value={id}>{accounts[id].name}</option>)}
       </select>
-      <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 5 }}>{ui.to}</label>
-      <select value={to} onChange={(e) => setTo(e.target.value)} style={selectStyle(t)}>
+      <label style={{ display: "block", fontSize: fs(12), color: t.textMuted, marginBottom: 5 }}>{ui.to}</label>
+      <select value={to} onChange={(e) => setTo(e.target.value)} style={selectStyle(t, fs)}>
         {ids.map((id) => <option key={id} value={id}>{accounts[id].name}</option>)}
       </select>
-      <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 5 }}>{ui.amount} ({fromCur})</label>
-      <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" style={{ ...inputStyle(t), fontFamily: "'JetBrains Mono', monospace" }} />
-      <button onClick={() => onSubmit(from, to, parseFloat(amount.replace(",", ".")) || 0)} style={{ width: "100%", background: accent, color: t.onAccent, border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+      <label style={{ display: "block", fontSize: fs(12), color: t.textMuted, marginBottom: 5 }}>{ui.amount} ({fromCur})</label>
+      <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" style={{ ...inputStyle(t, fs), fontFamily: "'JetBrains Mono', monospace" }} />
+      <button onClick={() => onSubmit(from, to, parseFloat(amount.replace(",", ".")) || 0)} style={{ width: "100%", background: accent, color: t.onAccent, border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 700, fontSize: fs(14), cursor: "pointer" }}>
         {ui.transferBtn}
       </button>
     </div>
   );
 }
 
-function TxForm({ account, accent, t, onSubmit, ui }) {
+function TxForm({ account, accent, t, onSubmit, ui, fs = (px) => px }) {
   const [type, setType] = useState("spesa");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(Object.keys(account.categories)[0]);
@@ -2520,30 +2565,30 @@ function TxForm({ account, accent, t, onSubmit, ui }) {
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {["spesa", "entrata"].map((tt) => (
-          <button key={tt} onClick={() => setType(tt)} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: `1.5px solid ${type === tt ? accent : t.surfaceBorder}`, background: type === tt ? `${accent}22` : "transparent", color: type === tt ? accent : t.textMuted, fontWeight: 600, fontSize: 13.5, cursor: "pointer" }}>
+          <button key={tt} onClick={() => setType(tt)} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: `1.5px solid ${type === tt ? accent : t.surfaceBorder}`, background: type === tt ? `${accent}22` : "transparent", color: type === tt ? accent : t.textMuted, fontWeight: 600, fontSize: fs(13.5), cursor: "pointer" }}>
             {tt === "spesa" ? ui.expenseType : ui.incomeType}
           </button>
         ))}
       </div>
-      <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 5 }}>{ui.amount} ({sym})</label>
-      <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" style={{ ...inputStyle(t), fontFamily: "'JetBrains Mono', monospace" }} />
-      <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 5 }}>{ui.category}</label>
-      <select value={category} onChange={(e) => setCategory(e.target.value)} style={selectStyle(t)}>
+      <label style={{ display: "block", fontSize: fs(12), color: t.textMuted, marginBottom: 5 }}>{ui.amount} ({sym})</label>
+      <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" style={{ ...inputStyle(t, fs), fontFamily: "'JetBrains Mono', monospace" }} />
+      <label style={{ display: "block", fontSize: fs(12), color: t.textMuted, marginBottom: 5 }}>{ui.category}</label>
+      <select value={category} onChange={(e) => setCategory(e.target.value)} style={selectStyle(t, fs)}>
         {Object.entries(account.categories).map(([id, c]) => <option key={id} value={id}>{c.label}</option>)}
       </select>
-      <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 5 }}>{ui.note}</label>
-      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={ui.notePh} style={{ ...inputStyle(t), marginBottom: 18 }} />
-      <button onClick={() => onSubmit({ transactionType: type, amount: parseFloat(amount.replace(",", ".")) || 0, category, note })} style={{ width: "100%", background: accent, color: t.onAccent, border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+      <label style={{ display: "block", fontSize: fs(12), color: t.textMuted, marginBottom: 5 }}>{ui.note}</label>
+      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={ui.notePh} style={{ ...inputStyle(t, fs), marginBottom: 18 }} />
+      <button onClick={() => onSubmit({ transactionType: type, amount: parseFloat(amount.replace(",", ".")) || 0, category, note })} style={{ width: "100%", background: accent, color: t.onAccent, border: "none", borderRadius: 10, padding: "13px 0", fontWeight: 700, fontSize: fs(14), cursor: "pointer" }}>
         {ui.save}
       </button>
     </div>
   );
 }
 
-const inputStyle = (t) => ({ width: "100%", padding: "11px 13px", borderRadius: 9, border: `1px solid ${t.surfaceBorder}`, background: t.surface, color: t.textStrong, fontSize: 14, marginBottom: 14 });
-const selectStyle = (t) => ({ ...inputStyle(t) });
+const inputStyle = (t, fs = (px) => px) => ({ width: "100%", padding: "11px 13px", borderRadius: 9, border: `1px solid ${t.surfaceBorder}`, background: t.surface, color: t.textStrong, fontSize: fs(14), marginBottom: 14 });
+const selectStyle = (t, fs = (px) => px) => ({ ...inputStyle(t, fs) });
 
-function RecurringForm({ accent, t, categories, onAdd, ui }) {
+function RecurringForm({ accent, t, categories, onAdd, ui, fs = (px) => px }) {
   const [transactionType, setTransactionType] = useState("entrata");
   const [kind, setKind] = useState("abbonamento");
   const [label, setLabel] = useState("");
@@ -2563,48 +2608,48 @@ function RecurringForm({ accent, t, categories, onAdd, ui }) {
     <div style={{ background: t.surfaceRow, border: `1.5px dashed ${t.surfaceAltBorder}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         {["entrata", "spesa"].map((tt) => (
-          <button key={tt} onClick={() => setTransactionType(tt)} style={{ flex: 1, padding: "8px 0", borderRadius: 7, border: `1.5px solid ${transactionType === tt ? accent : t.surfaceBorder}`, background: transactionType === tt ? `${accent}22` : "transparent", color: transactionType === tt ? accent : t.textMuted, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
+          <button key={tt} onClick={() => setTransactionType(tt)} style={{ flex: 1, padding: "8px 0", borderRadius: 7, border: `1.5px solid ${transactionType === tt ? accent : t.surfaceBorder}`, background: transactionType === tt ? `${accent}22` : "transparent", color: transactionType === tt ? accent : t.textMuted, fontWeight: 600, fontSize: fs(12), cursor: "pointer" }}>
             {tt === "spesa" ? ui.expenseType : ui.incomeType}
           </button>
         ))}
       </div>
       {transactionType === "spesa" && (
-        <select value={kind} onChange={(e) => setKind(e.target.value)} style={{ ...selectStyle(t), marginBottom: 8, fontSize: 12.5, padding: "9px 10px" }}>
+        <select value={kind} onChange={(e) => setKind(e.target.value)} style={{ ...selectStyle(t, fs), marginBottom: 8, fontSize: fs(12.5), padding: "9px 10px" }}>
           <option value="abbonamento">{ui.kindSub}</option>
           <option value="biglietto">{ui.kindTicket}</option>
           <option value="altro">{ui.kindOther}</option>
         </select>
       )}
-      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={transactionType === "spesa" ? ui.recurringNamePh : ui.recurringNamePhIncome} style={{ ...inputStyle(t), marginBottom: 8, fontSize: 12.5, padding: "9px 10px" }} />
+      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={transactionType === "spesa" ? ui.recurringNamePh : ui.recurringNamePhIncome} style={{ ...inputStyle(t, fs), marginBottom: 8, fontSize: fs(12.5), padding: "9px 10px" }} />
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-        <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={ui.amountPh} style={{ ...inputStyle(t), marginBottom: 0, fontSize: 12.5, padding: "9px 10px", fontFamily: "'JetBrains Mono', monospace" }} />
-        <select value={frequency} onChange={(e) => setFrequency(e.target.value)} style={{ ...selectStyle(t), marginBottom: 0, fontSize: 12.5, padding: "9px 10px", width: 120 }}>
+        <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={ui.amountPh} style={{ ...inputStyle(t, fs), marginBottom: 0, fontSize: fs(12.5), padding: "9px 10px", fontFamily: "'JetBrains Mono', monospace" }} />
+        <select value={frequency} onChange={(e) => setFrequency(e.target.value)} style={{ ...selectStyle(t, fs), marginBottom: 0, fontSize: fs(12.5), padding: "9px 10px", width: 120 }}>
           <option value="weekly">{ui.freqWeekly}</option>
           <option value="monthly">{ui.freqMonthly}</option>
           <option value="yearly">{ui.freqYearly}</option>
         </select>
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...selectStyle(t), marginBottom: 0, fontSize: 12.5, padding: "9px 10px" }}>
+        <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...selectStyle(t, fs), marginBottom: 0, fontSize: fs(12.5), padding: "9px 10px" }}>
           <option value="TUTTE">{ui.allCategoriesSplit}</option>
           {Object.entries(categories).map(([id, c]) => <option key={id} value={id}>{c.label}</option>)}
         </select>
-        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ ...inputStyle(t), marginBottom: 0, fontSize: 12.5, padding: "9px 10px", width: 140 }} />
+        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ ...inputStyle(t, fs), marginBottom: 0, fontSize: fs(12.5), padding: "9px 10px", width: 140 }} />
       </div>
-      <button onClick={submit} style={{ width: "100%", background: accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+      <button onClick={submit} style={{ width: "100%", background: accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 700, fontSize: fs(12.5), cursor: "pointer" }}>
         {ui.addRecurringBtn}
       </button>
     </div>
   );
 }
 
-function AddCategoryRow({ accent, t, onAdd, ui }) {
+function AddCategoryRow({ accent, t, onAdd, ui, fs = (px) => px }) {
   const [val, setVal] = useState("");
   const submit = () => { onAdd(val); setVal(""); };
   return (
     <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-      <input value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder={ui.newCategoryPh} style={{ flex: 1, background: t.surface, border: `1.5px dashed ${t.surfaceAltBorder}`, borderRadius: 8, padding: "9px 11px", color: t.textStrong, fontSize: 12.5 }} />
-      <button onClick={submit} style={{ background: accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "0 14px", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+      <input value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder={ui.newCategoryPh} style={{ flex: 1, background: t.surface, border: `1.5px dashed ${t.surfaceAltBorder}`, borderRadius: 8, padding: "9px 11px", color: t.textStrong, fontSize: fs(12.5) }} />
+      <button onClick={submit} style={{ background: accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "0 14px", fontWeight: 700, fontSize: fs(12.5), cursor: "pointer" }}>
         <Plus size={14} />
       </button>
     </div>
