@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, Trash2, Wallet, Send, Mic, MicOff, Camera, X, Check, ArrowLeftRight,
-  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type,
+  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
@@ -423,6 +423,7 @@ const UI = {
     languageTitle: "Lingua", themeTitle: "Tema colore", currencyTitle: "Valuta del conto",
     textSizeTitle: "Dimensione testo", textSizeDesc: "Ingrandisce solo il testo dell'app, lasciando invariati layout e icone.",
     monthlyTrend: "Andamento mensile", vsLastMonth: "vs mese scorso", netMonthly: "Netto mensile", threshold20: "Soglia +20%",
+    expandYearly: "Vedi andamento annuale", growthDotLegend: "Crescita di almeno il 20% vs mese precedente",
     categoriesTitle: "Categorie", total: "Totale", learnedWords: "Parole imparate", customWords: "Parole personalizzate",
     obNext: "Avanti", obSkip: "Salta", obStart: "Inizia",
     deleteConfirmTitle: "Eliminare questo conto?",     deleteConfirmWarning: "ATTENZIONE: eliminando questo conto verranno cancellati anche i dati salvati sul cloud collegati al tuo codice di sincronizzazione. Se è l'unico conto, il codice smetterà di funzionare per recuperare dati su altri dispositivi. L'operazione non si può annullare.",    deleteConfirmCancel: "Annulla", deleteConfirmBtn: "Elimina definitivamente",
@@ -466,6 +467,7 @@ const UI = {
     languageTitle: "Language", themeTitle: "Color theme", currencyTitle: "Account currency",
     textSizeTitle: "Text size", textSizeDesc: "Enlarges only the app's text, leaving layout and icons unchanged.",
     monthlyTrend: "Monthly trend", vsLastMonth: "vs last month", netMonthly: "Monthly net", threshold20: "+20% threshold",
+    expandYearly: "View yearly trend", growthDotLegend: "Grew by 20% or more vs previous month",
     categoriesTitle: "Categories", total: "Total", learnedWords: "Learned words", customWords: "Custom words",
     obNext: "Next", obSkip: "Skip", obStart: "Get started",
     deleteConfirmTitle: "Delete this account?",     deleteConfirmWarning: "WARNING: deleting this account will also erase the cloud data linked to your sync code. If it's your only account, the code will stop working to recover data on other devices. This cannot be undone.",    deleteConfirmCancel: "Cancel", deleteConfirmBtn: "Delete permanently",
@@ -509,6 +511,7 @@ const UI = {
     languageTitle: "Limbă", themeTitle: "Temă de culoare", currencyTitle: "Moneda contului",
     textSizeTitle: "Dimensiunea textului", textSizeDesc: "Mărește doar textul aplicației, fără să schimbe aspectul sau pictogramele.",
     monthlyTrend: "Evoluție lunară", vsLastMonth: "față de luna trecută", netMonthly: "Net lunar", threshold20: "Prag +20%",
+    expandYearly: "Vezi evoluția anuală", growthDotLegend: "Creștere de cel puțin 20% față de luna precedentă",
     categoriesTitle: "Categorii", total: "Total", learnedWords: "Cuvinte învățate", customWords: "Cuvinte personalizate",
     obNext: "Înainte", obSkip: "Sari peste", obStart: "Începe",
     deleteConfirmTitle: "Ștergi acest cont?",     deleteConfirmWarning: "ATENȚIE: ștergând acest cont vor fi șterse și datele din cloud asociate codului tău de sincronizare. Dacă este singurul cont, codul nu va mai putea recupera date pe alte dispozitive. Operația nu poate fi anulată.",    deleteConfirmCancel: "Anulează", deleteConfirmBtn: "Șterge definitiv",
@@ -552,6 +555,7 @@ const UI = {
     languageTitle: "Язык", themeTitle: "Цветовая тема", currencyTitle: "Валюта счёта",
     textSizeTitle: "Размер текста", textSizeDesc: "Увеличивает только текст приложения, не меняя расположение и иконки.",
     monthlyTrend: "Динамика по месяцам", vsLastMonth: "к прошлому месяцу", netMonthly: "Итог за месяц", threshold20: "Порог +20%",
+    expandYearly: "Посмотреть годовую динамику", growthDotLegend: "Рост на 20% и более к прошлому месяцу",
     categoriesTitle: "Категории", total: "Всего", learnedWords: "Изученные слова", customWords: "Пользовательские слова",
     obNext: "Далее", obSkip: "Пропустить", obStart: "Начать",
     deleteConfirmTitle: "Удалить этот счёт?",     deleteConfirmWarning: "ВНИМАНИЕ: удаление этого счёта также сотрёт данные в облаке, связанные с вашим кодом синхронизации. Если это ваш единственный счёт, код перестанет восстанавливать данные на других устройствах. Действие необратимо.",    deleteConfirmCancel: "Отмена", deleteConfirmBtn: "Удалить окончательно",
@@ -595,6 +599,7 @@ const UI = {
     languageTitle: "语言", themeTitle: "配色主题", currencyTitle: "账户货币",
     textSizeTitle: "文字大小", textSizeDesc: "仅放大应用内的文字，不改变布局和图标。",
     monthlyTrend: "月度趋势", vsLastMonth: "较上月", netMonthly: "月净额", threshold20: "+20% 阈值",
+    expandYearly: "查看年度趋势", growthDotLegend: "较上月增长20%及以上",
     categoriesTitle: "分类", total: "总计", learnedWords: "已学会的词", customWords: "自定义词汇",
     obNext: "下一步", obSkip: "跳过", obStart: "开始使用",
     deleteConfirmTitle: "删除此账户？",     deleteConfirmWarning: "警告：删除此账户还会清除与你的同步代码关联的云端数据。如果这是你唯一的账户，该代码将无法再在其他设备上恢复数据。此操作无法撤销。",    deleteConfirmCancel: "取消", deleteConfirmBtn: "永久删除",
@@ -1642,6 +1647,52 @@ export default function Finbar() {
     return Math.round(((last.net - prevVal) / Math.abs(prevVal)) * 1000) / 10;
   }, [monthlyData]);
 
+  // ---- Vista annuale espansa (freccetta sul grafico "Andamento mensile") ----
+  const yearlyByYear = useMemo(() => {
+    const map = {};
+    if (!account) return map;
+    account.transactions.forEach((tx) => {
+      if (tx.type === "init") return;
+      const year = Number(tx.date.slice(0, 4));
+      const monthIdx = Number(tx.date.slice(5, 7)) - 1;
+      map[year] = map[year] || Array(12).fill(0);
+      map[year][monthIdx] += tx.type === "entrata" ? tx.amount : -tx.amount;
+    });
+    return map;
+  }, [account]);
+
+  const currentCalendarYear = new Date().getFullYear();
+  const yearlyMinYear = useMemo(() => {
+    const years = Object.keys(yearlyByYear).map(Number);
+    return years.length ? Math.min(...years, currentCalendarYear) : currentCalendarYear;
+  }, [yearlyByYear, currentCalendarYear]);
+
+  const [showYearlyView, setShowYearlyView] = useState(false);
+  const [yearlyViewYear, setYearlyViewYear] = useState(currentCalendarYear);
+
+  const yearlyRows = useMemo(() => {
+    const year = yearlyViewYear;
+    const monthsData = yearlyByYear[year] || Array(12).fill(0);
+    const prevYearData = yearlyByYear[year - 1];
+    const isCurrentYear = year === currentCalendarYear;
+    const currentMonthIdx = new Date().getMonth();
+    return Array.from({ length: 12 }, (_, m) => {
+      const future = isCurrentYear && m > currentMonthIdx;
+      const value = future ? null : Math.round(monthsData[m] * 100) / 100;
+      const prevRaw = m > 0 ? monthsData[m - 1] : (prevYearData ? prevYearData[11] : null);
+      const hasPrev = prevRaw !== null && prevRaw !== undefined && (m > 0 || !!prevYearData);
+      const label = new Date(year, m, 1).toLocaleDateString("it-IT", { month: "short" });
+      return { month: label, value, prev: hasPrev ? prevRaw : null, hasPrev };
+    });
+  }, [yearlyByYear, yearlyViewYear, currentCalendarYear]);
+
+  const renderYearDot = (props) => {
+    const { cx, cy, payload } = props;
+    if (payload.value === null || payload.value === undefined) return null;
+    const grew = payload.hasPrev && payload.prev !== 0 && payload.value >= payload.prev * 1.2;
+    return <circle key={`dot-${payload.month}`} cx={cx} cy={cy} r={4.5} fill={grew ? "#2ECC71" : t.accent} stroke={t.surfaceRow} strokeWidth={1.5} />;
+  };
+
   if (loading) {
     return <div style={{ minHeight: "100vh", background: "#10142A", display: "flex", alignItems: "center", justifyContent: "center", color: t.textMuted, fontFamily: "Inter, sans-serif" }}>caricamento di Finbar…</div>;
   }
@@ -2326,7 +2377,18 @@ export default function Finbar() {
           {settingsSection === "trend" && account && monthlyData.length > 0 && (
             <>
               <div style={{ fontSize: fs(12), color: t.textMuted, margin: "0 0 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span>{account.name}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {account.name}
+                  <button
+                    onClick={() => { setYearlyViewYear(currentCalendarYear); setShowYearlyView(true); }}
+                    className="icon-btn"
+                    aria-label={ui.expandYearly}
+                    title={ui.expandYearly}
+                    style={{ color: t.textMuted, padding: 2 }}
+                  >
+                    <Maximize2 size={13} />
+                  </button>
+                </span>
                 {monthlyChange !== null && (
                   <span style={{ color: monthlyChange >= 20 ? "#2ECC71" : monthlyChange >= 0 ? "#F0B429" : "#FF7A6B", fontWeight: 700 }}>
                     {monthlyChange >= 0 ? "+" : ""}{monthlyChange}% {ui.vsLastMonth}
@@ -2482,6 +2544,53 @@ export default function Finbar() {
               </>
             );
           })()}
+        </Modal>
+      )}
+
+      {showYearlyView && account && (
+        <Modal
+          onClose={() => setShowYearlyView(false)}
+          t={t}
+          fs={fs}
+          title={
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button
+                onClick={() => setYearlyViewYear((y) => Math.max(yearlyMinYear, y - 1))}
+                disabled={yearlyViewYear <= yearlyMinYear}
+                className="icon-btn"
+                aria-label="Previous year"
+                style={{ color: yearlyViewYear <= yearlyMinYear ? t.surfaceBorder : t.textStrong }}
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <span className="num" style={{ minWidth: 52, textAlign: "center" }}>{yearlyViewYear}</span>
+              <button
+                onClick={() => setYearlyViewYear((y) => Math.min(currentCalendarYear, y + 1))}
+                disabled={yearlyViewYear >= currentCalendarYear}
+                className="icon-btn"
+                aria-label="Next year"
+                style={{ color: yearlyViewYear >= currentCalendarYear ? t.surfaceBorder : t.textStrong }}
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          }
+        >
+          <div style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 14, padding: "14px 10px 6px", height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={yearlyRows} margin={{ top: 8, right: 10, left: -18, bottom: 0 }}>
+                <CartesianGrid stroke={t.modalBorder} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="month" tick={{ fill: t.textMuted, fontSize: 10 }} axisLine={{ stroke: t.modalBorder }} tickLine={false} />
+                <YAxis tick={{ fill: t.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: t.surfaceDeep, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, fontSize: fs(12) }} formatter={(v) => (v === null ? "—" : currency(v, account.currency))} />
+                <Line type="monotone" dataKey="value" stroke={t.accent} strokeWidth={2.5} dot={renderYearDot} connectNulls={false} name={ui.netMonthly} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 12, fontSize: fs(11), color: t.textMuted }}>
+            <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#2ECC71", flexShrink: 0 }} />
+            {ui.growthDotLegend}
+          </div>
         </Modal>
       )}
     </div>
