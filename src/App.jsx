@@ -1689,7 +1689,7 @@ export default function Finbar() {
   const renderYearDot = (props) => {
     const { cx, cy, payload } = props;
     if (payload.value === null || payload.value === undefined) return null;
-    const grew = payload.hasPrev && payload.prev !== 0 && payload.value >= payload.prev * 1.2;
+    const grew = payload.hasPrev && !(payload.prev === 0 && payload.value === 0) && payload.value >= payload.prev * 1.2;
     return <circle key={`dot-${payload.month}`} cx={cx} cy={cy} r={4.5} fill={grew ? "#2ECC71" : t.accent} stroke={t.surfaceRow} strokeWidth={1.5} />;
   };
 
