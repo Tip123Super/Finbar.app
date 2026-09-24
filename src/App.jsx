@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, Trash2, Wallet, Send, Mic, MicOff, Camera, X, Check, ArrowLeftRight,
-  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2,
+  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2, Download, Table, FileText,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
 import { LEGAL_TEXT } from "./legalText";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // Icona "tre fulmini" per l'header: un fulmine grande al centro affiancato da due più piccoli, stessa forma ripetuta in scala diversa.
 function LightningIcon({ size = 18, color = "currentColor" }) {
@@ -424,6 +426,7 @@ const UI = {
     textSizeTitle: "Dimensione testo", textSizeDesc: "Ingrandisce solo il testo dell'app, lasciando invariati layout e icone.",
     monthlyTrend: "Andamento mensile", vsLastMonth: "vs mese scorso", netMonthly: "Netto mensile", threshold20: "Soglia +20%",
     expandYearly: "Vedi andamento annuale", growthDotLegend: "Crescita di almeno il 20% vs mese precedente",
+    exportHistory: "Esporta storico", exportChooseFormat: "In che formato vuoi esportare lo storico?", exportedOn: "Esportato il", csvDate: "Data", csvType: "Tipo", csvCategory: "Categoria", csvAmount: "Importo", csvCurrency: "Valuta", csvNote: "Nota",
     categoriesTitle: "Categorie", total: "Totale", learnedWords: "Parole imparate", customWords: "Parole personalizzate",
     obNext: "Avanti", obSkip: "Salta", obStart: "Inizia",
     deleteConfirmTitle: "Eliminare questo conto?",     deleteConfirmWarning: "ATTENZIONE: eliminando questo conto verranno cancellati anche i dati salvati sul cloud collegati al tuo codice di sincronizzazione. Se è l'unico conto, il codice smetterà di funzionare per recuperare dati su altri dispositivi. L'operazione non si può annullare.",    deleteConfirmCancel: "Annulla", deleteConfirmBtn: "Elimina definitivamente",
@@ -468,6 +471,7 @@ const UI = {
     textSizeTitle: "Text size", textSizeDesc: "Enlarges only the app's text, leaving layout and icons unchanged.",
     monthlyTrend: "Monthly trend", vsLastMonth: "vs last month", netMonthly: "Monthly net", threshold20: "+20% threshold",
     expandYearly: "View yearly trend", growthDotLegend: "Grew by 20% or more vs previous month",
+    exportHistory: "Export history", exportChooseFormat: "Which format do you want to export the history in?", exportedOn: "Exported on", csvDate: "Date", csvType: "Type", csvCategory: "Category", csvAmount: "Amount", csvCurrency: "Currency", csvNote: "Note",
     categoriesTitle: "Categories", total: "Total", learnedWords: "Learned words", customWords: "Custom words",
     obNext: "Next", obSkip: "Skip", obStart: "Get started",
     deleteConfirmTitle: "Delete this account?",     deleteConfirmWarning: "WARNING: deleting this account will also erase the cloud data linked to your sync code. If it's your only account, the code will stop working to recover data on other devices. This cannot be undone.",    deleteConfirmCancel: "Cancel", deleteConfirmBtn: "Delete permanently",
@@ -512,6 +516,7 @@ const UI = {
     textSizeTitle: "Dimensiunea textului", textSizeDesc: "Mărește doar textul aplicației, fără să schimbe aspectul sau pictogramele.",
     monthlyTrend: "Evoluție lunară", vsLastMonth: "față de luna trecută", netMonthly: "Net lunar", threshold20: "Prag +20%",
     expandYearly: "Vezi evoluția anuală", growthDotLegend: "Creștere de cel puțin 20% față de luna precedentă",
+    exportHistory: "Exportă istoricul", exportChooseFormat: "În ce format vrei să exporți istoricul?", exportedOn: "Exportat pe", csvDate: "Data", csvType: "Tip", csvCategory: "Categorie", csvAmount: "Sumă", csvCurrency: "Monedă", csvNote: "Notă",
     categoriesTitle: "Categorii", total: "Total", learnedWords: "Cuvinte învățate", customWords: "Cuvinte personalizate",
     obNext: "Înainte", obSkip: "Sari peste", obStart: "Începe",
     deleteConfirmTitle: "Ștergi acest cont?",     deleteConfirmWarning: "ATENȚIE: ștergând acest cont vor fi șterse și datele din cloud asociate codului tău de sincronizare. Dacă este singurul cont, codul nu va mai putea recupera date pe alte dispozitive. Operația nu poate fi anulată.",    deleteConfirmCancel: "Anulează", deleteConfirmBtn: "Șterge definitiv",
@@ -556,6 +561,7 @@ const UI = {
     textSizeTitle: "Размер текста", textSizeDesc: "Увеличивает только текст приложения, не меняя расположение и иконки.",
     monthlyTrend: "Динамика по месяцам", vsLastMonth: "к прошлому месяцу", netMonthly: "Итог за месяц", threshold20: "Порог +20%",
     expandYearly: "Посмотреть годовую динамику", growthDotLegend: "Рост на 20% и более к прошлому месяцу",
+    exportHistory: "Экспорт истории", exportChooseFormat: "В каком формате экспортировать историю?", exportedOn: "Экспортировано", csvDate: "Дата", csvType: "Тип", csvCategory: "Категория", csvAmount: "Сумма", csvCurrency: "Валюта", csvNote: "Заметка",
     categoriesTitle: "Категории", total: "Всего", learnedWords: "Изученные слова", customWords: "Пользовательские слова",
     obNext: "Далее", obSkip: "Пропустить", obStart: "Начать",
     deleteConfirmTitle: "Удалить этот счёт?",     deleteConfirmWarning: "ВНИМАНИЕ: удаление этого счёта также сотрёт данные в облаке, связанные с вашим кодом синхронизации. Если это ваш единственный счёт, код перестанет восстанавливать данные на других устройствах. Действие необратимо.",    deleteConfirmCancel: "Отмена", deleteConfirmBtn: "Удалить окончательно",
@@ -600,6 +606,7 @@ const UI = {
     textSizeTitle: "文字大小", textSizeDesc: "仅放大应用内的文字，不改变布局和图标。",
     monthlyTrend: "月度趋势", vsLastMonth: "较上月", netMonthly: "月净额", threshold20: "+20% 阈值",
     expandYearly: "查看年度趋势", growthDotLegend: "较上月增长20%及以上",
+    exportHistory: "导出历史记录", exportChooseFormat: "选择导出格式：", exportedOn: "导出日期", csvDate: "日期", csvType: "类型", csvCategory: "类别", csvAmount: "金额", csvCurrency: "货币", csvNote: "备注",
     categoriesTitle: "分类", total: "总计", learnedWords: "已学会的词", customWords: "自定义词汇",
     obNext: "下一步", obSkip: "跳过", obStart: "开始使用",
     deleteConfirmTitle: "删除此账户？",     deleteConfirmWarning: "警告：删除此账户还会清除与你的同步代码关联的云端数据。如果这是你唯一的账户，该代码将无法再在其他设备上恢复数据。此操作无法撤销。",    deleteConfirmCancel: "取消", deleteConfirmBtn: "永久删除",
@@ -1372,6 +1379,69 @@ export default function Finbar() {
     return ok;
   };
 
+  // ---- Esportazione cronologia in CSV ----
+  // Delimitatore ";" (non ",") e virgola come separatore decimale per l'italiano:
+  // così il file si apre già formattato correttamente in Excel IT senza bisogno
+  // di "Testo in colonne". Ordine cronologico crescente (dal più vecchio), come
+  // un normale estratto conto, diverso dall'elenco in app che è più recente-prima.
+  const exportHistoryCSV = () => {
+    if (!account || account.transactions.length === 0) return;
+    const tr = T[appLanguage] || T.it;
+    const useComma = appLanguage === "it" || appLanguage === "ro" || appLanguage === "ru";
+    const headers = [ui.csvDate, ui.csvType, ui.csvCategory, ui.csvAmount, ui.csvCurrency, ui.csvNote];
+    const escape = (v) => {
+      const s = String(v ?? "");
+      return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const rows = [...account.transactions].reverse().map((tx) => {
+      const typeLabel = tx.type === "entrata" ? tr.income : tx.type === "spesa" ? tr.expense : ui.initialBalance;
+      const signedAmount = tx.type === "spesa" ? -tx.amount : tx.amount;
+      const amountStr = useComma ? signedAmount.toFixed(2).replace(".", ",") : signedAmount.toFixed(2);
+      return [tx.date, typeLabel, tx.category, amountStr, tx.currency || account.currency, tx.note || ""];
+    });
+    const csv = "\uFEFF" + [headers, ...rows].map((r) => r.map(escape).join(";")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (account.name || "conto").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    a.href = url;
+    a.download = `finbar-storico-${safeName}-${todayISO()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // ---- Esportazione cronologia in PDF ----
+  // Stessa fonte dati e stesso ordine cronologico del CSV, ma già impaginata:
+  // si apre su qualunque telefono senza bisogno di un'app di fogli di calcolo.
+  const exportHistoryPDF = () => {
+    if (!account || account.transactions.length === 0) return;
+    const tr = T[appLanguage] || T.it;
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text(`Finbar — ${account.name}`, 14, 18);
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text(`${ui.exportedOn}: ${todayISO()}`, 14, 25);
+    doc.text(`${ui.totalBalance}: ${currency(account.totalBalance, account.currency)}`, 14, 30);
+    const rows = [...account.transactions].reverse().map((tx) => {
+      const typeLabel = tx.type === "entrata" ? tr.income : tx.type === "spesa" ? tr.expense : ui.initialBalance;
+      const signedAmount = tx.type === "spesa" ? -tx.amount : tx.amount;
+      return [tx.date, typeLabel, tx.category, currency(signedAmount, tx.currency || account.currency), tx.note || ""];
+    });
+    autoTable(doc, {
+      startY: 36,
+      head: [[ui.csvDate, ui.csvType, ui.csvCategory, ui.csvAmount, ui.csvNote]],
+      body: rows,
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [50, 50, 60] },
+      columnStyles: { 3: { halign: "right" } },
+    });
+    const safeName = (account.name || "conto").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    doc.save(`finbar-storico-${safeName}-${todayISO()}.pdf`);
+  };
+
   const resolveCategoryChoice = (categoryId) => {
     if (!pendingCategoryChoice) return;
     const { amount, transactionType, note, rawText } = pendingCategoryChoice;
@@ -1668,6 +1738,7 @@ export default function Finbar() {
   }, [yearlyByYear, currentCalendarYear]);
 
   const [showYearlyView, setShowYearlyView] = useState(false);
+  const [showExportChoice, setShowExportChoice] = useState(false);
   const [yearlyViewYear, setYearlyViewYear] = useState(currentCalendarYear);
 
   const yearlyRows = useMemo(() => {
@@ -1968,6 +2039,17 @@ export default function Finbar() {
           {tab === "history" && (
             <div ref={tourHistoryRef} className="scrollbar" style={{ flex: 1, overflowY: "auto", padding: "6px 18px 18px" }}>
               {account.transactions.length === 0 && <div style={{ textAlign: "center", color: t.textMuted, fontSize: fs(13), marginTop: 40 }}>{ui.historyEmpty}</div>}
+              {account.transactions.length > 0 && (
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+                  <button
+                    onClick={() => setShowExportChoice(true)}
+                    style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "6px 10px", color: t.textMuted, cursor: "pointer", fontSize: fs(11.5) }}
+                  >
+                    <Download size={13} />
+                    {ui.exportHistory}
+                  </button>
+                </div>
+              )}
               {account.transactions.map((tx) => (
                 <div key={tx.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 4px", borderBottom: `1px solid ${t.surfaceBorder}` }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -2544,6 +2626,28 @@ export default function Finbar() {
               </>
             );
           })()}
+        </Modal>
+      )}
+
+      {showExportChoice && account && (
+        <Modal onClose={() => setShowExportChoice(false)} title={ui.exportHistory} t={t} fs={fs}>
+          <div style={{ fontSize: fs(12.5), color: t.textMuted, marginBottom: 14 }}>{ui.exportChooseFormat}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <button
+              onClick={() => { exportHistoryCSV(); setShowExportChoice(false); }}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", borderRadius: 12, border: `1.5px solid ${t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer", color: t.textStrong }}
+            >
+              <Table size={22} color={t.accent} />
+              <span style={{ fontSize: fs(13), fontWeight: 600 }}>CSV</span>
+            </button>
+            <button
+              onClick={() => { exportHistoryPDF(); setShowExportChoice(false); }}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "18px 10px", borderRadius: 12, border: `1.5px solid ${t.surfaceBorder}`, background: t.surfaceRow, cursor: "pointer", color: t.textStrong }}
+            >
+              <FileText size={22} color={t.accent} />
+              <span style={{ fontSize: fs(13), fontWeight: 600 }}>PDF</span>
+            </button>
+          </div>
         </Modal>
       )}
 
