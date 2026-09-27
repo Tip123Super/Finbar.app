@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, Trash2, Wallet, Send, Mic, MicOff, Camera, X, Check, ArrowLeftRight,
-  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2, Download, Table, FileText,
+  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2, Download, Table, FileText, Bell,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
@@ -29,6 +29,8 @@ const LANGUAGE_KEY = "finex:language";
 const LEGAL_ACCEPTED_KEY = "finex:legal-accepted";
 const TEXT_SCALE_KEY = "finex:text-scale";
 const TEXT_SCALE_OPTIONS = [1, 1.15, 1.3, 1.5, 1.75, 2];
+const DAILY_RECAP_SEEN_KEY = "finex:daily-recap-seen";
+const NOTIF_RECAP_ENABLED_KEY = "finex:notif-recap-enabled";
 
 // ---- Supabase: sincronizzazione tra dispositivi tramite codice ----
 const SUPABASE_URL = "https://vhlneufpkwzbuapwlmap.supabase.co";
@@ -308,6 +310,8 @@ const T = {
     expense: "Uscita", income: "Entrata",
     txRegistered: (label, amt, note, cur) => `${label} registrata: ${currency(amt, cur)}${note ? " · " + note : ""}`,
     balanceSet: (amt, cur) => `Fatto! Saldo totale impostato a ${currency(amt, cur)}, categorie ricalcolate in base alle percentuali.`,
+    dailyRecapBanner: (net, bal, cur) => `Ieri: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Saldo: ${currency(bal, cur)} — tocca per i dettagli`,
+    dailyRecapMessage: (net, bal, cur) => `📊 Riepilogo di ieri: hai ${net >= 0 ? "guadagnato" : "speso"} ${currency(Math.abs(net), cur)} netti. Il tuo saldo attuale è ${currency(bal, cur)}.`,
     txFailed: "Non sono riuscito a registrarla, riprova.",
     needCategory: (label, amt, cur) => `Ho capito ${label === "Uscita" ? "un'uscita" : "un'entrata"} di ${currency(amt, cur)}, ma non la categoria. Scegline una qui sotto:`,
     balanceAnswer: (name, amt, cur) => `Il saldo di ${name} è ${currency(amt, cur)}.`,
@@ -327,6 +331,8 @@ const T = {
     expense: "Expense", income: "Income",
     txRegistered: (label, amt, note, cur) => `${label} recorded: ${currency(amt, cur)}${note ? " · " + note : ""}`,
     balanceSet: (amt, cur) => `Done! Total balance set to ${currency(amt, cur)}, categories recalculated based on percentages.`,
+    dailyRecapBanner: (net, bal, cur) => `Yesterday: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Balance: ${currency(bal, cur)} — tap for details`,
+    dailyRecapMessage: (net, bal, cur) => `📊 Yesterday's recap: you ${net >= 0 ? "earned" : "spent"} ${currency(Math.abs(net), cur)} net. Your current balance is ${currency(bal, cur)}.`,
     txFailed: "I couldn't record it, please try again.",
     needCategory: (label, amt, cur) => `I understood ${label === "Expense" ? "an expense" : "an income"} of ${currency(amt, cur)}, but not the category. Pick one below:`,
     balanceAnswer: (name, amt, cur) => `${name}'s balance is ${currency(amt, cur)}.`,
@@ -346,6 +352,8 @@ const T = {
     expense: "Cheltuială", income: "Venit",
     txRegistered: (label, amt, note, cur) => `${label} înregistrată: ${currency(amt, cur)}${note ? " · " + note : ""}`,
     balanceSet: (amt, cur) => `Gata! Soldul total a fost setat la ${currency(amt, cur)}, categoriile au fost recalculate pe baza procentelor.`,
+    dailyRecapBanner: (net, bal, cur) => `Ieri: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Sold: ${currency(bal, cur)} — atinge pentru detalii`,
+    dailyRecapMessage: (net, bal, cur) => `📊 Rezumatul de ieri: ai ${net >= 0 ? "câștigat" : "cheltuit"} ${currency(Math.abs(net), cur)} net. Soldul tău actual este ${currency(bal, cur)}.`,
     txFailed: "Nu am putut înregistra, încearcă din nou.",
     needCategory: (label, amt, cur) => `Am înțeles ${label === "Cheltuială" ? "o cheltuială" : "un venit"} de ${currency(amt, cur)}, dar nu categoria. Alege una mai jos:`,
     balanceAnswer: (name, amt, cur) => `Soldul contului ${name} este ${currency(amt, cur)}.`,
@@ -365,6 +373,8 @@ const T = {
     expense: "Расход", income: "Доход",
     txRegistered: (label, amt, note, cur) => `${label} записан: ${currency(amt, cur)}${note ? " · " + note : ""}`,
     balanceSet: (amt, cur) => `Готово! Общий баланс установлен на ${currency(amt, cur)}, категории пересчитаны по процентам.`,
+    dailyRecapBanner: (net, bal, cur) => `Вчера: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Баланс: ${currency(bal, cur)} — нажмите для подробностей`,
+    dailyRecapMessage: (net, bal, cur) => `📊 Итоги вчерашнего дня: вы ${net >= 0 ? "заработали" : "потратили"} ${currency(Math.abs(net), cur)} нетто. Текущий баланс: ${currency(bal, cur)}.`,
     txFailed: "Не удалось записать, попробуйте ещё раз.",
     needCategory: (label, amt, cur) => `Я понял ${label === "Расход" ? "расход" : "доход"} на ${currency(amt, cur)}, но не категорию. Выберите ниже:`,
     balanceAnswer: (name, amt, cur) => `Баланс «${name}»: ${currency(amt, cur)}.`,
@@ -384,6 +394,8 @@ const T = {
     expense: "支出", income: "收入",
     txRegistered: (label, amt, note, cur) => `${label}已记录：${currency(amt, cur)}${note ? " · " + note : ""}`,
     balanceSet: (amt, cur) => `完成！总余额已设置为${currency(amt, cur)}，各分类已按百分比重新计算。`,
+    dailyRecapBanner: (net, bal, cur) => `昨天：${net >= 0 ? "+" : ""}${currency(net, cur)} · 余额：${currency(bal, cur)} — 点击查看详情`,
+    dailyRecapMessage: (net, bal, cur) => `📊 昨日总结：你${net >= 0 ? "净收入" : "净支出"}了${currency(Math.abs(net), cur)}。当前余额为${currency(bal, cur)}。`,
     txFailed: "记录失败，请重试。",
     needCategory: (label, amt, cur) => `我识别到一笔${label === "支出" ? "支出" : "收入"} ${currency(amt, cur)}，但不知道分类。请选择：`,
     balanceAnswer: (name, amt, cur) => `${name}的余额是 ${currency(amt, cur)}。`,
@@ -426,7 +438,8 @@ const UI = {
     textSizeTitle: "Dimensione testo", textSizeDesc: "Ingrandisce solo il testo dell'app, lasciando invariati layout e icone.",
     monthlyTrend: "Andamento mensile", vsLastMonth: "vs mese scorso", netMonthly: "Netto mensile", threshold20: "Soglia +20%",
     expandYearly: "Vedi andamento annuale", growthDotLegend: "Crescita di almeno il 20% vs mese precedente",
-    exportHistory: "Esporta storico", exportChooseFormat: "In che formato vuoi esportare lo storico?", exportedOn: "Esportato il", csvDate: "Data", csvType: "Tipo", csvCategory: "Categoria", csvAmount: "Importo", csvCurrency: "Valuta", csvNote: "Nota",
+    exportHistory: "Esporta storico", exportChooseFormat: "In che formato vuoi esportare lo storico?", exportedOn: "Esportato il",
+    notificationsTitle: "Notifiche", notificationsRecapLabel: "Riepilogo giornaliero", notificationsRecapDesc: "Un breve avviso in Dashboard quando riapri l'app, con quanto speso/guadagnato il giorno prima. Tocca il messaggio per leggerlo per esteso in Chat.", notifOn: "Attivo", notifOff: "Disattivato", csvDate: "Data", csvType: "Tipo", csvCategory: "Categoria", csvAmount: "Importo", csvCurrency: "Valuta", csvNote: "Nota",
     categoriesTitle: "Categorie", total: "Totale", learnedWords: "Parole imparate", customWords: "Parole personalizzate",
     obNext: "Avanti", obSkip: "Salta", obStart: "Inizia",
     deleteConfirmTitle: "Eliminare questo conto?",     deleteConfirmWarning: "ATTENZIONE: eliminando questo conto verranno cancellati anche i dati salvati sul cloud collegati al tuo codice di sincronizzazione. Se è l'unico conto, il codice smetterà di funzionare per recuperare dati su altri dispositivi. L'operazione non si può annullare.",    deleteConfirmCancel: "Annulla", deleteConfirmBtn: "Elimina definitivamente",
@@ -471,7 +484,8 @@ const UI = {
     textSizeTitle: "Text size", textSizeDesc: "Enlarges only the app's text, leaving layout and icons unchanged.",
     monthlyTrend: "Monthly trend", vsLastMonth: "vs last month", netMonthly: "Monthly net", threshold20: "+20% threshold",
     expandYearly: "View yearly trend", growthDotLegend: "Grew by 20% or more vs previous month",
-    exportHistory: "Export history", exportChooseFormat: "Which format do you want to export the history in?", exportedOn: "Exported on", csvDate: "Date", csvType: "Type", csvCategory: "Category", csvAmount: "Amount", csvCurrency: "Currency", csvNote: "Note",
+    exportHistory: "Export history", exportChooseFormat: "Which format do you want to export the history in?", exportedOn: "Exported on",
+    notificationsTitle: "Notifications", notificationsRecapLabel: "Daily recap", notificationsRecapDesc: "A short banner on the Dashboard when you reopen the app, showing what you spent/earned the day before. Tap it to read the full message in Chat.", notifOn: "On", notifOff: "Off", csvDate: "Date", csvType: "Type", csvCategory: "Category", csvAmount: "Amount", csvCurrency: "Currency", csvNote: "Note",
     categoriesTitle: "Categories", total: "Total", learnedWords: "Learned words", customWords: "Custom words",
     obNext: "Next", obSkip: "Skip", obStart: "Get started",
     deleteConfirmTitle: "Delete this account?",     deleteConfirmWarning: "WARNING: deleting this account will also erase the cloud data linked to your sync code. If it's your only account, the code will stop working to recover data on other devices. This cannot be undone.",    deleteConfirmCancel: "Cancel", deleteConfirmBtn: "Delete permanently",
@@ -516,7 +530,8 @@ const UI = {
     textSizeTitle: "Dimensiunea textului", textSizeDesc: "Mărește doar textul aplicației, fără să schimbe aspectul sau pictogramele.",
     monthlyTrend: "Evoluție lunară", vsLastMonth: "față de luna trecută", netMonthly: "Net lunar", threshold20: "Prag +20%",
     expandYearly: "Vezi evoluția anuală", growthDotLegend: "Creștere de cel puțin 20% față de luna precedentă",
-    exportHistory: "Exportă istoricul", exportChooseFormat: "În ce format vrei să exporți istoricul?", exportedOn: "Exportat pe", csvDate: "Data", csvType: "Tip", csvCategory: "Categorie", csvAmount: "Sumă", csvCurrency: "Monedă", csvNote: "Notă",
+    exportHistory: "Exportă istoricul", exportChooseFormat: "În ce format vrei să exporți istoricul?", exportedOn: "Exportat pe",
+    notificationsTitle: "Notificări", notificationsRecapLabel: "Rezumat zilnic", notificationsRecapDesc: "Un mic banner pe Dashboard când redeschizi aplicația, cu ce ai cheltuit/câștigat ziua precedentă. Atinge-l pentru a citi mesajul complet în Chat.", notifOn: "Activ", notifOff: "Dezactivat", csvDate: "Data", csvType: "Tip", csvCategory: "Categorie", csvAmount: "Sumă", csvCurrency: "Monedă", csvNote: "Notă",
     categoriesTitle: "Categorii", total: "Total", learnedWords: "Cuvinte învățate", customWords: "Cuvinte personalizate",
     obNext: "Înainte", obSkip: "Sari peste", obStart: "Începe",
     deleteConfirmTitle: "Ștergi acest cont?",     deleteConfirmWarning: "ATENȚIE: ștergând acest cont vor fi șterse și datele din cloud asociate codului tău de sincronizare. Dacă este singurul cont, codul nu va mai putea recupera date pe alte dispozitive. Operația nu poate fi anulată.",    deleteConfirmCancel: "Anulează", deleteConfirmBtn: "Șterge definitiv",
@@ -561,7 +576,8 @@ const UI = {
     textSizeTitle: "Размер текста", textSizeDesc: "Увеличивает только текст приложения, не меняя расположение и иконки.",
     monthlyTrend: "Динамика по месяцам", vsLastMonth: "к прошлому месяцу", netMonthly: "Итог за месяц", threshold20: "Порог +20%",
     expandYearly: "Посмотреть годовую динамику", growthDotLegend: "Рост на 20% и более к прошлому месяцу",
-    exportHistory: "Экспорт истории", exportChooseFormat: "В каком формате экспортировать историю?", exportedOn: "Экспортировано", csvDate: "Дата", csvType: "Тип", csvCategory: "Категория", csvAmount: "Сумма", csvCurrency: "Валюта", csvNote: "Заметка",
+    exportHistory: "Экспорт истории", exportChooseFormat: "В каком формате экспортировать историю?", exportedOn: "Экспортировано",
+    notificationsTitle: "Уведомления", notificationsRecapLabel: "Ежедневная сводка", notificationsRecapDesc: "Небольшой баннер на главном экране при открытии приложения — сколько потрачено/заработано за прошлый день. Нажмите, чтобы прочитать полностью в чате.", notifOn: "Включено", notifOff: "Выключено", csvDate: "Дата", csvType: "Тип", csvCategory: "Категория", csvAmount: "Сумма", csvCurrency: "Валюта", csvNote: "Заметка",
     categoriesTitle: "Категории", total: "Всего", learnedWords: "Изученные слова", customWords: "Пользовательские слова",
     obNext: "Далее", obSkip: "Пропустить", obStart: "Начать",
     deleteConfirmTitle: "Удалить этот счёт?",     deleteConfirmWarning: "ВНИМАНИЕ: удаление этого счёта также сотрёт данные в облаке, связанные с вашим кодом синхронизации. Если это ваш единственный счёт, код перестанет восстанавливать данные на других устройствах. Действие необратимо.",    deleteConfirmCancel: "Отмена", deleteConfirmBtn: "Удалить окончательно",
@@ -606,7 +622,8 @@ const UI = {
     textSizeTitle: "文字大小", textSizeDesc: "仅放大应用内的文字，不改变布局和图标。",
     monthlyTrend: "月度趋势", vsLastMonth: "较上月", netMonthly: "月净额", threshold20: "+20% 阈值",
     expandYearly: "查看年度趋势", growthDotLegend: "较上月增长20%及以上",
-    exportHistory: "导出历史记录", exportChooseFormat: "选择导出格式：", exportedOn: "导出日期", csvDate: "日期", csvType: "类型", csvCategory: "类别", csvAmount: "金额", csvCurrency: "货币", csvNote: "备注",
+    exportHistory: "导出历史记录", exportChooseFormat: "选择导出格式：", exportedOn: "导出日期",
+    notificationsTitle: "通知", notificationsRecapLabel: "每日总结", notificationsRecapDesc: "重新打开应用时，仪表盘会显示一条简短提示，说明前一天的收支情况。点击可在聊天中查看完整内容。", notifOn: "已开启", notifOff: "已关闭", csvDate: "日期", csvType: "类型", csvCategory: "类别", csvAmount: "金额", csvCurrency: "货币", csvNote: "备注",
     categoriesTitle: "分类", total: "总计", learnedWords: "已学会的词", customWords: "自定义词汇",
     obNext: "下一步", obSkip: "跳过", obStart: "开始使用",
     deleteConfirmTitle: "删除此账户？",     deleteConfirmWarning: "警告：删除此账户还会清除与你的同步代码关联的云端数据。如果这是你唯一的账户，该代码将无法再在其他设备上恢复数据。此操作无法撤销。",    deleteConfirmCancel: "取消", deleteConfirmBtn: "永久删除",
@@ -961,7 +978,7 @@ export default function Finbar() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, th, c, sc, lg, la, ts] = await Promise.allSettled([
+        const [a, th, c, sc, lg, la, ts, rs, ne] = await Promise.allSettled([
           window.storage.get(ACCOUNTS_KEY, false),
           window.storage.get(THEME_KEY, false),
           window.storage.get(CHAT_KEY, false),
@@ -969,6 +986,8 @@ export default function Finbar() {
           window.storage.get(LANGUAGE_KEY, false),
           window.storage.get(LEGAL_ACCEPTED_KEY, false),
           window.storage.get(TEXT_SCALE_KEY, false),
+          window.storage.get(DAILY_RECAP_SEEN_KEY, false),
+          window.storage.get(NOTIF_RECAP_ENABLED_KEY, false),
         ]);
         let accs = {};
         let active = null;
@@ -985,6 +1004,10 @@ export default function Finbar() {
         }
         setThemeKey(th.status === "fulfilled" && th.value ? th.value.value : "indaco");
         setTextScale(ts.status === "fulfilled" && ts.value ? Number(ts.value.value) : 1);
+        try {
+          setRecapSeen(rs.status === "fulfilled" && rs.value ? JSON.parse(rs.value.value) : {});
+        } catch { setRecapSeen({}); }
+        setRecapEnabled(ne.status === "fulfilled" && ne.value ? ne.value.value === "1" : true);
         setMessages(c.status === "fulfilled" && c.value ? JSON.parse(c.value.value) : []);
         if (Object.keys(accs).length === 0) setShowNewAccount(true);
 
@@ -1097,6 +1120,42 @@ export default function Finbar() {
     setTextScale(scale);
     try { await window.storage.set(TEXT_SCALE_KEY, String(scale), false); } catch {}
   };
+
+  // ---- Riepilogo giornaliero (banner sulla Dashboard -> messaggio in Chat) ----
+  // Calcolato per il conto attivo, una sola volta al giorno per conto (recapSeen[accountId] = data ISO
+  // dell'ultima volta mostrato). Resta zitto se ieri non c'è stato nessun movimento, come richiesto.
+  const changeRecapEnabled = async (val) => {
+    setRecapEnabled(val);
+    try { await window.storage.set(NOTIF_RECAP_ENABLED_KEY, val ? "1" : "0", false); } catch {}
+  };
+
+  useEffect(() => {
+    if (!recapEnabled) { setDailyRecap(null); return; }
+    if (!account) { setDailyRecap(null); return; }
+    const today = todayISO();
+    if (recapSeen[account.id] === today) { setDailyRecap(null); return; }
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const yesterdayTx = account.transactions.filter((tx) => tx.date === yesterday && tx.type !== "init");
+    if (yesterdayTx.length === 0) { setDailyRecap(null); return; }
+    const net = yesterdayTx.reduce((sum, tx) => sum + (tx.type === "entrata" ? tx.amount : -tx.amount), 0);
+    setDailyRecap({ net: Math.round(net * 100) / 100, balance: account.totalBalance, accountId: account.id, currency: account.currency });
+  }, [account?.id, account?.transactions, recapSeen, recapEnabled]);
+
+  const dismissDailyRecap = async (openInChat) => {
+    if (!dailyRecap) return;
+    const today = todayISO();
+    const next = { ...recapSeen, [dailyRecap.accountId]: today };
+    setRecapSeen(next);
+    try { await window.storage.set(DAILY_RECAP_SEEN_KEY, JSON.stringify(next), false); } catch {}
+    if (openInChat) {
+      const tr = T[appLanguage] || T.it;
+      const msg = { role: "assistant", content: tr.dailyRecapMessage(dailyRecap.net, dailyRecap.balance, dailyRecap.currency), ts: Date.now(), accountId: dailyRecap.accountId };
+      await persistChat([...messages, msg]);
+      setTab("chat");
+    }
+    setDailyRecap(null);
+  };
+
   const changeLanguage = async (lang) => {
     setAppLanguage(lang);
     setShowLanguagePicker(false);
@@ -1739,6 +1798,9 @@ export default function Finbar() {
 
   const [showYearlyView, setShowYearlyView] = useState(false);
   const [showExportChoice, setShowExportChoice] = useState(false);
+  const [recapSeen, setRecapSeen] = useState({});
+  const [dailyRecap, setDailyRecap] = useState(null);
+  const [recapEnabled, setRecapEnabled] = useState(true);
   const [yearlyViewYear, setYearlyViewYear] = useState(currentCalendarYear);
 
   const yearlyRows = useMemo(() => {
@@ -1837,6 +1899,24 @@ export default function Finbar() {
           {/* ===== Dashboard tab ===== */}
           {tab === "dash" && (
             <div className="scrollbar" style={{ flex: 1, overflowY: "auto", padding: "0 18px 18px" }}>
+              {dailyRecap && dailyRecap.accountId === account.id && (
+                <div
+                  onClick={() => dismissDailyRecap(true)}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: `${t.accent}18`, border: `1px solid ${t.accent}55`, borderRadius: 12, padding: "10px 12px", marginTop: 14, marginBottom: 2, cursor: "pointer" }}
+                >
+                  <span style={{ fontSize: fs(12), color: t.textStrong, lineHeight: 1.4 }}>
+                    {(T[appLanguage] || T.it).dailyRecapBanner(dailyRecap.net, dailyRecap.balance, dailyRecap.currency)}
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); dismissDailyRecap(false); }}
+                    className="icon-btn"
+                    aria-label="Dismiss"
+                    style={{ color: t.textMuted, flexShrink: 0 }}
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              )}
               <div ref={tourBalanceRef} style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: "22px 20px", marginBottom: 16, position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: `${t.accent}22`, filter: "blur(10px)" }} />
                 <div style={{ fontSize: fs(12), color: t.textMuted, marginBottom: 6, position: "relative" }}>{ui.totalBalance} · {account.name}</div>
@@ -2298,6 +2378,7 @@ export default function Finbar() {
             settingsSection === "language" ? ui.languageTitle :
             settingsSection === "theme" ? ui.themeTitle :
             settingsSection === "textSize" ? ui.textSizeTitle :
+            settingsSection === "notifications" ? ui.notificationsTitle :
             settingsSection === "currency" ? ui.currencyTitle :
             settingsSection === "trend" ? ui.monthlyTrend :
             settingsSection === "categories" ? ui.categoriesTitle :
@@ -2316,6 +2397,7 @@ export default function Finbar() {
                 { key: "language", label: ui.languageTitle, icon: Languages },
                 { key: "theme", label: ui.themeTitle, icon: Palette },
                 { key: "textSize", label: ui.textSizeTitle, icon: Type },
+                { key: "notifications", label: ui.notificationsTitle, icon: Bell },
                 ...(account ? [{ key: "currency", label: ui.currencyTitle, icon: Wallet }] : []),
                 ...(account && monthlyData.length > 0 ? [{ key: "trend", label: ui.monthlyTrend, icon: TrendingUp }] : []),
                 ...(account ? [{ key: "categories", label: ui.categoriesTitle, icon: Tag }] : []),
@@ -2430,6 +2512,24 @@ export default function Finbar() {
                     </span>
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {settingsSection === "notifications" && (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: t.surfaceRow, border: `1px solid ${t.surfaceBorder}`, borderRadius: 12, padding: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: fs(13), fontWeight: 600, color: t.textStrong, marginBottom: 4 }}>{ui.notificationsRecapLabel}</div>
+                  <div style={{ fontSize: fs(11.5), color: t.textMuted, lineHeight: 1.5 }}>{ui.notificationsRecapDesc}</div>
+                </div>
+                <button
+                  onClick={() => changeRecapEnabled(!recapEnabled)}
+                  aria-label={recapEnabled ? ui.notifOn : ui.notifOff}
+                  style={{ flexShrink: 0, width: 46, height: 26, borderRadius: 13, border: "none", cursor: "pointer", background: recapEnabled ? t.accent : t.surfaceBorder, position: "relative", transition: "background 0.15s" }}
+                >
+                  <div style={{ position: "absolute", top: 3, left: recapEnabled ? 23 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
+                </button>
               </div>
             </div>
           )}
