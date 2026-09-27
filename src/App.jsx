@@ -919,6 +919,9 @@ export default function Finbar() {
   const [activeId, setActiveId] = useState(null);
   const [themeKey, setThemeKey] = useState("indaco");
   const [textScale, setTextScale] = useState(1);
+  const [recapSeen, setRecapSeen] = useState({});
+  const [dailyRecap, setDailyRecap] = useState(null);
+  const [recapEnabled, setRecapEnabled] = useState(true);
   const [tab, setTab] = useState("dash");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -1798,9 +1801,6 @@ export default function Finbar() {
 
   const [showYearlyView, setShowYearlyView] = useState(false);
   const [showExportChoice, setShowExportChoice] = useState(false);
-  const [recapSeen, setRecapSeen] = useState({});
-  const [dailyRecap, setDailyRecap] = useState(null);
-  const [recapEnabled, setRecapEnabled] = useState(true);
   const [yearlyViewYear, setYearlyViewYear] = useState(currentCalendarYear);
 
   const yearlyRows = useMemo(() => {
