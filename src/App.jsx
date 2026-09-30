@@ -6,6 +6,7 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
 import { LEGAL_TEXT } from "./legalText";
+import { getDailyTip } from "./dailyTips";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -32,6 +33,8 @@ const TEXT_SCALE_OPTIONS = [1, 1.15, 1.3, 1.5, 1.75, 2];
 const DAILY_RECAP_SEEN_KEY = "finex:daily-recap-seen";
 const NOTIF_RECAP_ENABLED_KEY = "finex:notif-recap-enabled";
 const NOTIF_RECAP_HOUR_KEY = "finex:notif-recap-hour";
+const NOTIF_TIP_ENABLED_KEY = "finex:notif-tip-enabled";
+const NOTIF_TIP_SEEN_KEY = "finex:notif-tip-seen";
 
 // ---- Supabase: sincronizzazione tra dispositivi tramite codice ----
 const SUPABASE_URL = "https://vhlneufpkwzbuapwlmap.supabase.co";
@@ -440,7 +443,7 @@ const UI = {
     monthlyTrend: "Andamento mensile", vsLastMonth: "vs mese scorso", netMonthly: "Netto mensile", threshold20: "Soglia +20%",
     expandYearly: "Vedi andamento annuale", growthDotLegend: "Crescita di almeno il 20% vs mese precedente",
     exportHistory: "Esporta storico", exportChooseFormat: "In che formato vuoi esportare lo storico?", exportedOn: "Esportato il",
-    notificationsTitle: "Notifiche", notificationsRecapLabel: "Riepilogo giornaliero", notificationsRecapDesc: "Un breve avviso in Dashboard quando riapri l'app, con quanto speso/guadagnato il giorno prima. Tocca il messaggio per leggerlo per esteso in Chat.", notifOn: "Attivo", notifOff: "Disattivato", notifMinHourLabel: "Non mostrare prima delle", csvDate: "Data", csvType: "Tipo", csvCategory: "Categoria", csvAmount: "Importo", csvCurrency: "Valuta", csvNote: "Nota",
+    notificationsTitle: "Notifiche", notificationsRecapLabel: "Riepilogo giornaliero", notificationsRecapDesc: "Un breve avviso in Dashboard quando riapri l'app, con quanto speso/guadagnato il giorno prima. Tocca il messaggio per leggerlo per esteso in Chat.", notifOn: "Attivo", notifOff: "Disattivato", notifMinHourLabel: "Non mostrare prima delle", notificationsTipLabel: "Consiglio del giorno", notificationsTipDesc: "Un piccolo consiglio sulla gestione dei soldi (o su come usare Finbar) che appare in Chat una volta al giorno.", csvDate: "Data", csvType: "Tipo", csvCategory: "Categoria", csvAmount: "Importo", csvCurrency: "Valuta", csvNote: "Nota",
     categoriesTitle: "Categorie", total: "Totale", learnedWords: "Parole imparate", customWords: "Parole personalizzate",
     obNext: "Avanti", obSkip: "Salta", obStart: "Inizia",
     deleteConfirmTitle: "Eliminare questo conto?",     deleteConfirmWarning: "ATTENZIONE: eliminando questo conto verranno cancellati anche i dati salvati sul cloud collegati al tuo codice di sincronizzazione. Se è l'unico conto, il codice smetterà di funzionare per recuperare dati su altri dispositivi. L'operazione non si può annullare.",    deleteConfirmCancel: "Annulla", deleteConfirmBtn: "Elimina definitivamente",
@@ -486,7 +489,7 @@ const UI = {
     monthlyTrend: "Monthly trend", vsLastMonth: "vs last month", netMonthly: "Monthly net", threshold20: "+20% threshold",
     expandYearly: "View yearly trend", growthDotLegend: "Grew by 20% or more vs previous month",
     exportHistory: "Export history", exportChooseFormat: "Which format do you want to export the history in?", exportedOn: "Exported on",
-    notificationsTitle: "Notifications", notificationsRecapLabel: "Daily recap", notificationsRecapDesc: "A short banner on the Dashboard when you reopen the app, showing what you spent/earned the day before. Tap it to read the full message in Chat.", notifOn: "On", notifOff: "Off", notifMinHourLabel: "Don't show before", csvDate: "Date", csvType: "Type", csvCategory: "Category", csvAmount: "Amount", csvCurrency: "Currency", csvNote: "Note",
+    notificationsTitle: "Notifications", notificationsRecapLabel: "Daily recap", notificationsRecapDesc: "A short banner on the Dashboard when you reopen the app, showing what you spent/earned the day before. Tap it to read the full message in Chat.", notifOn: "On", notifOff: "Off", notifMinHourLabel: "Don't show before", notificationsTipLabel: "Tip of the day", notificationsTipDesc: "A short money-management tip (or a Finbar how-to) that appears in Chat once a day.", csvDate: "Date", csvType: "Type", csvCategory: "Category", csvAmount: "Amount", csvCurrency: "Currency", csvNote: "Note",
     categoriesTitle: "Categories", total: "Total", learnedWords: "Learned words", customWords: "Custom words",
     obNext: "Next", obSkip: "Skip", obStart: "Get started",
     deleteConfirmTitle: "Delete this account?",     deleteConfirmWarning: "WARNING: deleting this account will also erase the cloud data linked to your sync code. If it's your only account, the code will stop working to recover data on other devices. This cannot be undone.",    deleteConfirmCancel: "Cancel", deleteConfirmBtn: "Delete permanently",
@@ -532,7 +535,7 @@ const UI = {
     monthlyTrend: "Evoluție lunară", vsLastMonth: "față de luna trecută", netMonthly: "Net lunar", threshold20: "Prag +20%",
     expandYearly: "Vezi evoluția anuală", growthDotLegend: "Creștere de cel puțin 20% față de luna precedentă",
     exportHistory: "Exportă istoricul", exportChooseFormat: "În ce format vrei să exporți istoricul?", exportedOn: "Exportat pe",
-    notificationsTitle: "Notificări", notificationsRecapLabel: "Rezumat zilnic", notificationsRecapDesc: "Un mic banner pe Dashboard când redeschizi aplicația, cu ce ai cheltuit/câștigat ziua precedentă. Atinge-l pentru a citi mesajul complet în Chat.", notifOn: "Activ", notifOff: "Dezactivat", notifMinHourLabel: "Nu afișa înainte de", csvDate: "Data", csvType: "Tip", csvCategory: "Categorie", csvAmount: "Sumă", csvCurrency: "Monedă", csvNote: "Notă",
+    notificationsTitle: "Notificări", notificationsRecapLabel: "Rezumat zilnic", notificationsRecapDesc: "Un mic banner pe Dashboard când redeschizi aplicația, cu ce ai cheltuit/câștigat ziua precedentă. Atinge-l pentru a citi mesajul complet în Chat.", notifOn: "Activ", notifOff: "Dezactivat", notifMinHourLabel: "Nu afișa înainte de", notificationsTipLabel: "Sfatul zilei", notificationsTipDesc: "Un mic sfat despre gestionarea banilor (sau despre cum să folosești Finbar) care apare în Chat o dată pe zi.", csvDate: "Data", csvType: "Tip", csvCategory: "Categorie", csvAmount: "Sumă", csvCurrency: "Monedă", csvNote: "Notă",
     categoriesTitle: "Categorii", total: "Total", learnedWords: "Cuvinte învățate", customWords: "Cuvinte personalizate",
     obNext: "Înainte", obSkip: "Sari peste", obStart: "Începe",
     deleteConfirmTitle: "Ștergi acest cont?",     deleteConfirmWarning: "ATENȚIE: ștergând acest cont vor fi șterse și datele din cloud asociate codului tău de sincronizare. Dacă este singurul cont, codul nu va mai putea recupera date pe alte dispozitive. Operația nu poate fi anulată.",    deleteConfirmCancel: "Anulează", deleteConfirmBtn: "Șterge definitiv",
@@ -578,7 +581,7 @@ const UI = {
     monthlyTrend: "Динамика по месяцам", vsLastMonth: "к прошлому месяцу", netMonthly: "Итог за месяц", threshold20: "Порог +20%",
     expandYearly: "Посмотреть годовую динамику", growthDotLegend: "Рост на 20% и более к прошлому месяцу",
     exportHistory: "Экспорт истории", exportChooseFormat: "В каком формате экспортировать историю?", exportedOn: "Экспортировано",
-    notificationsTitle: "Уведомления", notificationsRecapLabel: "Ежедневная сводка", notificationsRecapDesc: "Небольшой баннер на главном экране при открытии приложения — сколько потрачено/заработано за прошлый день. Нажмите, чтобы прочитать полностью в чате.", notifOn: "Включено", notifOff: "Выключено", notifMinHourLabel: "Не показывать раньше", csvDate: "Дата", csvType: "Тип", csvCategory: "Категория", csvAmount: "Сумма", csvCurrency: "Валюта", csvNote: "Заметка",
+    notificationsTitle: "Уведомления", notificationsRecapLabel: "Ежедневная сводка", notificationsRecapDesc: "Небольшой баннер на главном экране при открытии приложения — сколько потрачено/заработано за прошлый день. Нажмите, чтобы прочитать полностью в чате.", notifOn: "Включено", notifOff: "Выключено", notifMinHourLabel: "Не показывать раньше", notificationsTipLabel: "Совет дня", notificationsTipDesc: "Небольшой совет по управлению деньгами (или как пользоваться Finbar), который появляется в чате раз в день.", csvDate: "Дата", csvType: "Тип", csvCategory: "Категория", csvAmount: "Сумма", csvCurrency: "Валюта", csvNote: "Заметка",
     categoriesTitle: "Категории", total: "Всего", learnedWords: "Изученные слова", customWords: "Пользовательские слова",
     obNext: "Далее", obSkip: "Пропустить", obStart: "Начать",
     deleteConfirmTitle: "Удалить этот счёт?",     deleteConfirmWarning: "ВНИМАНИЕ: удаление этого счёта также сотрёт данные в облаке, связанные с вашим кодом синхронизации. Если это ваш единственный счёт, код перестанет восстанавливать данные на других устройствах. Действие необратимо.",    deleteConfirmCancel: "Отмена", deleteConfirmBtn: "Удалить окончательно",
@@ -624,7 +627,7 @@ const UI = {
     monthlyTrend: "月度趋势", vsLastMonth: "较上月", netMonthly: "月净额", threshold20: "+20% 阈值",
     expandYearly: "查看年度趋势", growthDotLegend: "较上月增长20%及以上",
     exportHistory: "导出历史记录", exportChooseFormat: "选择导出格式：", exportedOn: "导出日期",
-    notificationsTitle: "通知", notificationsRecapLabel: "每日总结", notificationsRecapDesc: "重新打开应用时，仪表盘会显示一条简短提示，说明前一天的收支情况。点击可在聊天中查看完整内容。", notifOn: "已开启", notifOff: "已关闭", notifMinHourLabel: "不早于以下时间显示：", csvDate: "日期", csvType: "类型", csvCategory: "类别", csvAmount: "金额", csvCurrency: "货币", csvNote: "备注",
+    notificationsTitle: "通知", notificationsRecapLabel: "每日总结", notificationsRecapDesc: "重新打开应用时，仪表盘会显示一条简短提示，说明前一天的收支情况。点击可在聊天中查看完整内容。", notifOn: "已开启", notifOff: "已关闭", notifMinHourLabel: "不早于以下时间显示：", notificationsTipLabel: "每日小贴士", notificationsTipDesc: "每天在聊天中出现一条关于理财（或如何使用 Finbar）的小提示。", csvDate: "日期", csvType: "类型", csvCategory: "类别", csvAmount: "金额", csvCurrency: "货币", csvNote: "备注",
     categoriesTitle: "分类", total: "总计", learnedWords: "已学会的词", customWords: "自定义词汇",
     obNext: "下一步", obSkip: "跳过", obStart: "开始使用",
     deleteConfirmTitle: "删除此账户？",     deleteConfirmWarning: "警告：删除此账户还会清除与你的同步代码关联的云端数据。如果这是你唯一的账户，该代码将无法再在其他设备上恢复数据。此操作无法撤销。",    deleteConfirmCancel: "取消", deleteConfirmBtn: "永久删除",
@@ -924,6 +927,8 @@ export default function Finbar() {
   const [dailyRecap, setDailyRecap] = useState(null);
   const [recapEnabled, setRecapEnabled] = useState(true);
   const [recapMinHour, setRecapMinHour] = useState(8);
+  const [tipEnabled, setTipEnabled] = useState(true);
+  const [tipSeenDate, setTipSeenDate] = useState(null);
   const [tab, setTab] = useState("dash");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -983,7 +988,7 @@ export default function Finbar() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, th, c, sc, lg, la, ts, rs, ne, nh] = await Promise.allSettled([
+        const [a, th, c, sc, lg, la, ts, rs, ne, nh, te, tsn] = await Promise.allSettled([
           window.storage.get(ACCOUNTS_KEY, false),
           window.storage.get(THEME_KEY, false),
           window.storage.get(CHAT_KEY, false),
@@ -994,6 +999,8 @@ export default function Finbar() {
           window.storage.get(DAILY_RECAP_SEEN_KEY, false),
           window.storage.get(NOTIF_RECAP_ENABLED_KEY, false),
           window.storage.get(NOTIF_RECAP_HOUR_KEY, false),
+          window.storage.get(NOTIF_TIP_ENABLED_KEY, false),
+          window.storage.get(NOTIF_TIP_SEEN_KEY, false),
         ]);
         let accs = {};
         let active = null;
@@ -1015,6 +1022,8 @@ export default function Finbar() {
         } catch { setRecapSeen({}); }
         setRecapEnabled(ne.status === "fulfilled" && ne.value ? ne.value.value === "1" : true);
         setRecapMinHour(nh.status === "fulfilled" && nh.value ? Number(nh.value.value) : 8);
+        setTipEnabled(te.status === "fulfilled" && te.value ? te.value.value === "1" : true);
+        setTipSeenDate(tsn.status === "fulfilled" && tsn.value ? tsn.value.value : null);
         setMessages(c.status === "fulfilled" && c.value ? JSON.parse(c.value.value) : []);
         if (Object.keys(accs).length === 0) setShowNewAccount(true);
 
@@ -1139,6 +1148,27 @@ export default function Finbar() {
     setRecapMinHour(hour);
     try { await window.storage.set(NOTIF_RECAP_HOUR_KEY, String(hour), false); } catch {}
   };
+  const changeTipEnabled = async (val) => {
+    setTipEnabled(val);
+    try { await window.storage.set(NOTIF_TIP_ENABLED_KEY, val ? "1" : "0", false); } catch {}
+  };
+
+  // ---- Consiglio del giorno (Impostazioni -> Notifiche) ----
+  // Aspetta che il caricamento iniziale sia finito (loading === false) prima di controllare
+  // se mostrarlo: altrimenti, siccome tipSeenDate parte da null prima di sapere il vero valore
+  // salvato, rischieremmo di scrivere il messaggio in chat due volte (una con il valore
+  // provvisorio, una con quello vero appena arriva) - lo stesso tipo di errore di ordine
+  // incontrato con il riepilogo giornaliero, qui prevenuto invece di doverlo correggere dopo.
+  useEffect(() => {
+    if (loading || !tipEnabled || !account) return;
+    const today = todayISO();
+    if (tipSeenDate === today) return;
+    const tipText = getDailyTip(appLanguage);
+    const msg = { role: "assistant", content: tipText, ts: Date.now(), accountId: account.id };
+    persistChat([...messages, msg]);
+    setTipSeenDate(today);
+    window.storage.set(NOTIF_TIP_SEEN_KEY, today, false).catch(() => {});
+  }, [loading, tipEnabled, account?.id, tipSeenDate, appLanguage]);
 
   useEffect(() => {
     if (!recapEnabled) { setDailyRecap(null); return; }
@@ -2554,6 +2584,20 @@ export default function Finbar() {
                   </select>
                 </div>
               )}
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: t.surfaceRow, border: `1px solid ${t.surfaceBorder}`, borderRadius: 12, padding: 14, marginTop: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: fs(13), fontWeight: 600, color: t.textStrong, marginBottom: 4 }}>{ui.notificationsTipLabel}</div>
+                  <div style={{ fontSize: fs(11.5), color: t.textMuted, lineHeight: 1.5 }}>{ui.notificationsTipDesc}</div>
+                </div>
+                <button
+                  onClick={() => changeTipEnabled(!tipEnabled)}
+                  aria-label={tipEnabled ? ui.notifOn : ui.notifOff}
+                  style={{ flexShrink: 0, width: 46, height: 26, borderRadius: 13, border: "none", cursor: "pointer", background: tipEnabled ? t.accent : t.surfaceBorder, position: "relative", transition: "background 0.15s" }}
+                >
+                  <div style={{ position: "absolute", top: 3, left: tipEnabled ? 23 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
+                </button>
+              </div>
             </div>
           )}
 
