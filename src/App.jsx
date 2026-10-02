@@ -1164,7 +1164,7 @@ export default function Finbar() {
     const today = todayISO();
     if (tipSeenDate === today) return;
     const tipText = getDailyTip(appLanguage);
-    const msg = { role: "assistant", content: tipText, ts: Date.now(), accountId: account.id };
+    const msg = { role: "assistant", content: tipText, ts: Date.now(), accountId: account.id, kind: "tip" };
     persistChat([...messages, msg]);
     setTipSeenDate(today);
     window.storage.set(NOTIF_TIP_SEEN_KEY, today, false).catch(() => {});
@@ -2063,10 +2063,18 @@ export default function Finbar() {
                       maxWidth: "82%", padding: "9px 13px", borderRadius: 15,
                       borderBottomRightRadius: m.role === "user" ? 4 : 15,
                       borderBottomLeftRadius: m.role === "user" ? 15 : 4,
-                      background: m.role === "user" ? t.surfaceAlt : `${t.accent}18`,
-                      border: m.role === "assistant" ? `1px solid ${t.accent}40` : "none",
+                      background: m.role === "user" ? t.surfaceAlt : (m.kind === "tip" ? `${t.accent}22` : `${t.accent}18`),
+                      border: m.role === "assistant" ? (m.kind === "tip" ? `1.5px solid ${t.accent}` : `1px solid ${t.accent}40`) : "none",
+                      boxShadow: m.kind === "tip" ? `0 0 8px ${t.accent}A0, 0 0 20px ${t.accent}50` : "none",
+                      position: m.kind === "tip" ? "relative" : undefined,
                       fontSize: fs(14), lineHeight: 1.5,
                     }}>
+                      {m.kind === "tip" && (
+                        <>
+                          <span style={{ position: "absolute", top: -10, left: -4, fontSize: fs(12), fontWeight: 800, color: t.accent, textShadow: `0 0 6px ${t.accent}` }}>!!!</span>
+                          <span style={{ position: "absolute", bottom: -10, right: -4, fontSize: fs(12), fontWeight: 800, color: t.accent, textShadow: `0 0 6px ${t.accent}` }}>!!!</span>
+                        </>
+                      )}
                       {m.content}
                       {m.txOk && <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5, fontSize: fs(11), color: "#2ECC71" }}><Check size={11} /> Registrato</div>}
                       {m.role === "assistant" && (
