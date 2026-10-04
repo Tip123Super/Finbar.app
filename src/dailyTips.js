@@ -61,13 +61,19 @@ function seededShuffle(seed, arr) {
 // Una frase diversa per ogni giorno del mese (1-30), zero ripetizioni.
 // Il giorno 31 (nei mesi che lo hanno) ripete la frase del giorno 1 dello stesso mese:
 // è l'unica eccezione prevista, dato che le frasi sono 30 e non 31.
-export function getDailyTip(lang, date = new Date()) {
+//
+// "offset" (0, 1, 2...) serve per i conti multipli: ogni conto legge lo stesso
+// mazzo mescolato del mese ma partendo da una posizione diversa, così conti
+// diversi non si ritrovano mai la stessa frase lo stesso giorno (finché sono
+// meno di 30 conti) - e ciascun conto mantiene comunque, al suo interno, la
+// stessa garanzia di non ripetersi nel mese.
+export function getDailyTip(lang, date = new Date(), offset = 0) {
   const tips = DAILY_TIPS[lang] && DAILY_TIPS[lang].length === 30 ? DAILY_TIPS[lang] : DAILY_TIPS.it;
   const year = date.getFullYear();
   const month = date.getMonth(); // 0-11
   const day = date.getDate(); // 1-31
   const seed = year * 12 + month + 1;
   const order = seededShuffle(seed, tips.map((_, i) => i));
-  const idx = day <= order.length ? order[day - 1] : order[0];
+  const idx = order[(day - 1 + offset) % order.length];
   return tips[idx];
 }

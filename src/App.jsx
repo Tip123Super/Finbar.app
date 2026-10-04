@@ -928,7 +928,7 @@ export default function Finbar() {
   const [recapEnabled, setRecapEnabled] = useState(true);
   const [recapMinHour, setRecapMinHour] = useState(8);
   const [tipEnabled, setTipEnabled] = useState(true);
-  const [tipSeenDate, setTipSeenDate] = useState(null);
+  const [tipSeen, setTipSeen] = useState({});
   const [tab, setTab] = useState("dash");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -1023,7 +1023,9 @@ export default function Finbar() {
         setRecapEnabled(ne.status === "fulfilled" && ne.value ? ne.value.value === "1" : true);
         setRecapMinHour(nh.status === "fulfilled" && nh.value ? Number(nh.value.value) : 8);
         setTipEnabled(te.status === "fulfilled" && te.value ? te.value.value === "1" : true);
-        setTipSeenDate(tsn.status === "fulfilled" && tsn.value ? tsn.value.value : null);
+        try {
+          setTipSeen(tsn.status === "fulfilled" && tsn.value ? JSON.parse(tsn.value.value) : {});
+        } catch { setTipSeen({}); }
         setMessages(c.status === "fulfilled" && c.value ? JSON.parse(c.value.value) : []);
         if (Object.keys(accs).length === 0) setShowNewAccount(true);
 
@@ -1155,20 +1157,22 @@ export default function Finbar() {
 
   // ---- Consiglio del giorno (Impostazioni -> Notifiche) ----
   // Aspetta che il caricamento iniziale sia finito (loading === false) prima di controllare
-  // se mostrarlo: altrimenti, siccome tipSeenDate parte da null prima di sapere il vero valore
+  // se mostrarlo: altrimenti, siccome tipSeen parte vuoto prima di sapere il vero valore
   // salvato, rischieremmo di scrivere il messaggio in chat due volte (una con il valore
   // provvisorio, una con quello vero appena arriva) - lo stesso tipo di errore di ordine
   // incontrato con il riepilogo giornaliero, qui prevenuto invece di doverlo correggere dopo.
   useEffect(() => {
     if (loading || !tipEnabled || !account) return;
     const today = todayISO();
-    if (tipSeenDate === today) return;
-    const tipText = getDailyTip(appLanguage);
+    if (tipSeen[account.id] === today) return;
+    const accountOffset = Math.max(0, Object.keys(accounts).indexOf(account.id));
+    const tipText = getDailyTip(appLanguage, new Date(), accountOffset);
     const msg = { role: "assistant", content: tipText, ts: Date.now(), accountId: account.id, kind: "tip" };
     persistChat([...messages, msg]);
-    setTipSeenDate(today);
-    window.storage.set(NOTIF_TIP_SEEN_KEY, today, false).catch(() => {});
-  }, [loading, tipEnabled, account?.id, tipSeenDate, appLanguage]);
+    const nextSeen = { ...tipSeen, [account.id]: today };
+    setTipSeen(nextSeen);
+    window.storage.set(NOTIF_TIP_SEEN_KEY, JSON.stringify(nextSeen), false).catch(() => {});
+  }, [loading, tipEnabled, account?.id, tipSeen, appLanguage, accounts]);
 
   useEffect(() => {
     if (!recapEnabled) { setDailyRecap(null); return; }
@@ -2071,8 +2075,8 @@ export default function Finbar() {
                     }}>
                       {m.kind === "tip" && (
                         <>
-                          <span style={{ position: "absolute", top: -10, left: -4, fontSize: fs(12), fontWeight: 800, color: t.accent, textShadow: `0 0 6px ${t.accent}` }}>!!!</span>
-                          <span style={{ position: "absolute", bottom: -10, right: -4, fontSize: fs(12), fontWeight: 800, color: t.accent, textShadow: `0 0 6px ${t.accent}` }}>!!!</span>
+                          <span style={{ position: "absolute", top: -14, left: -6, fontSize: fs(19), fontWeight: 800, color: t.accent, textShadow: `0 0 6px ${t.accent}` }}>!!!</span>
+                          <span style={{ position: "absolute", bottom: -14, right: -6, fontSize: fs(19), fontWeight: 800, color: t.accent, textShadow: `0 0 6px ${t.accent}` }}>!!!</span>
                         </>
                       )}
                       {m.content}
