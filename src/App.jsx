@@ -117,11 +117,14 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 function spendFromCategory(acc, category, amount) {
   const cat = acc.categories[category];
   let remaining = amount;
+  const breakdown = {}; // { categoryId: quanto è stato prelevato esattamente da lì }
+  const take = (c, v) => { breakdown[c] = (breakdown[c] || 0) + v; };
 
   const useDirect = Math.min(Math.max(cat.balance, 0), remaining);
   cat.balance -= useDirect;
   remaining -= useDirect;
-  if (remaining <= 0.0001) return;
+  if (useDirect > 0) take(category, useDirect);
+  if (remaining <= 0.0001) return breakdown;
 
   let pool = Object.keys(acc.categories).filter((c) => c !== category && acc.categories[c].balance > 0);
   while (remaining > 0.0001 && pool.length > 0) {
@@ -135,8 +138,10 @@ function spendFromCategory(acc, category, amount) {
       if (target.balance >= share) {
         target.balance -= share;
         absorbedThisRound += share;
+        take(c, share);
       } else {
         absorbedThisRound += target.balance;
+        take(c, target.balance);
         target.balance = 0;
         emptied.push(c);
       }
@@ -148,6 +153,7 @@ function spendFromCategory(acc, category, amount) {
   // se resta ancora un'eccedenza dopo aver azzerato proprio tutte le categorie,
   // non c'è più nulla da fare a livello di suddivisione interna: il saldo totale
   // del conto (calcolato a parte) riflette comunque per intero la spesa reale.
+  return breakdown;
 }
 
 function newAccount(name, initialBalance, currencyCode) {
@@ -176,26 +182,64 @@ function applyTransaction(account, { transactionType, amount, category, note }) 
   const validCats = cats.filter((c) => acc.categories[c]);
   if (validCats.length === 0) return { acc: account, ok: false };
 
+  let breakdown; // { categoryId: variazione esatta applicata a quella categoria } - serve per annullare/correggere con precisione
   if (category === "TUTTE") {
     // Normalize by the ACTUAL sum of the percentages (not an assumed 100),
     // so the split across categories always adds up exactly to `amount`
     // even if the user's percentages don't total 100%.
+    breakdown = {};
     const totalPct = validCats.reduce((s, c) => s + (acc.categories[c].pct || 0), 0);
     validCats.forEach((c) => {
       const weight = totalPct > 0 ? acc.categories[c].pct / totalPct : 1 / validCats.length;
       const share = amount * weight;
-      acc.categories[c].balance += transactionType === "spesa" ? -share : share;
+      const delta = transactionType === "spesa" ? -share : share;
+      acc.categories[c].balance += delta;
+      breakdown[c] = delta;
     });
   } else if (transactionType === "spesa") {
-    spendFromCategory(acc, category, amount);
+    const spent = spendFromCategory(acc, category, amount);
+    breakdown = {};
+    Object.entries(spent).forEach(([c, v]) => { breakdown[c] = -v; }); // negativo: è stato tolto
   } else {
     acc.categories[category].balance += amount;
+    breakdown = { [category]: amount };
   }
   acc.totalBalance += transactionType === "spesa" ? -amount : amount;
   acc.transactions.unshift({
-    id: uid(), type: transactionType, amount, category: category === "TUTTE" ? "Tutte le categorie" : acc.categories[category].label, note: note || "", date: todayISO(), currency: account.currency,
+    id: uid(), type: transactionType, amount, category: category === "TUTTE" ? "Tutte le categorie" : acc.categories[category].label, note: note || "", date: todayISO(), currency: account.currency, breakdown,
+    rawCategory: category, // "cibo", "TUTTE", ecc. - la chiave vera, non l'etichetta: serve per correggere/ripetere con la stessa categoria senza doverla indovinare dal breakdown (che ha più chiavi anche per una categoria sola, se è sfordata in cascata su altre)
   });
   return { acc, ok: true };
+}
+
+// Annulla con esattezza l'ULTIMA transazione registrata (deve essere la più recente,
+// nulla deve essere successo dopo): usa il breakdown salvato per restituire esattamente
+// quanto preso/dato a ogni categoria, invece di indovinare. Transazioni "init" non si annullano.
+function undoLastTransaction(account) {
+  const last = account.transactions[0];
+  if (!last || last.type === "init") return { acc: account, ok: false, removed: null };
+  const acc = JSON.parse(JSON.stringify(account));
+  const [removed] = acc.transactions.splice(0, 1);
+  if (removed.breakdown) {
+    Object.entries(removed.breakdown).forEach(([c, delta]) => {
+      if (acc.categories[c]) acc.categories[c].balance -= delta;
+    });
+  }
+  acc.totalBalance -= removed.type === "spesa" ? -removed.amount : removed.amount;
+  return { acc, ok: true, removed };
+}
+
+// Corregge SOLO l'importo dell'ultima transazione (tipo, categoria e nota restano uguali):
+// annulla con esattezza l'originale, poi ri-applica con il nuovo importo, così eventuali
+// sforamenti/cascate sulle categorie si ricalcolano sempre in modo corretto da zero.
+function correctLastTransactionAmount(account, newAmount) {
+  const { acc: undone, ok, removed } = undoLastTransaction(account);
+  if (!ok || !(newAmount > 0)) return { acc: account, ok: false, old: null };
+  const categoryKey = removed.rawCategory || "TUTTE";
+  const { acc: redone, ok: ok2 } = applyTransaction(undone, {
+    transactionType: removed.type, amount: newAmount, category: categoryKey, note: removed.note,
+  });
+  return ok2 ? { acc: redone, ok: true, old: removed } : { acc: account, ok: false, old: null };
 }
 
 // ---- recurring income/expenses (stipendi, pagette, abbonamenti…) ----
@@ -286,17 +330,25 @@ const LANGUAGE_NAMES_FOR_AI = { it: "Italian", en: "English", ro: "Romanian", ru
 
 function buildChatSystemPrompt(account, lang) {
   const catList = Object.entries(account.categories).map(([id, c]) => `${id} (${c.label}, ${c.pct}%)`).join(", ");
+  const last = account.transactions[0];
+  const lastInfo = last && last.type !== "init"
+    ? `L'ultima operazione registrata è: ${last.type} di ${last.amount} su "${last.category}"${last.note ? ` (nota: ${last.note})` : ""}. Se l'utente sta chiaramente correggendo SOLO L'IMPORTO di questa operazione appena fatta (es. "era 25 non 20", "mi sono sbagliato, erano 15€", "correggilo a 30"), usa il formato correct_last. Se invece vuole registrare una NUOVA transazione (anche se simile alla precedente), usa transaction come sempre.`
+    : `Non c'è nessuna operazione recente da poter correggere (il conto non ha ancora transazioni, a parte eventualmente il saldo iniziale).`;
+
   return `IMPORTANT: Always write every user-facing text field ("text", "question", "note") in ${LANGUAGE_NAMES_FOR_AI[lang] || "Italian"}, regardless of what language the user writes in.
 
 Sei l'assistente finanziario di Finbar. Account attivo: "${account.name}", saldo €${account.totalBalance.toFixed(2)}.
 Categorie disponibili: ${catList}. Puoi usare "TUTTE" come categoria per dividere un importo su tutte in base alle percentuali.
 
-Analizza il messaggio dell'utente e rispondi SEMPRE E SOLO con un JSON su una riga, in uno di questi 3 formati:
+${lastInfo}
+
+Analizza il messaggio dell'utente e rispondi SEMPRE E SOLO con un JSON su una riga, in uno di questi 4 formati:
 - Transazione riconosciuta: {"type":"transaction","amount":10,"category":"cibo","transactionType":"spesa","note":"breve nota opzionale"}
+- Correzione SOLO dell'importo dell'ultima operazione (vedi sopra): {"type":"correct_last","amount":25}
 - Manca un dettaglio essenziale: {"type":"question","question":"testo della domanda"}
 - Chiacchiera, domanda generica, richiesta di analisi: {"type":"response","text":"testo della risposta"}
 
-Non inventare mai importi o categorie non menzionati dall'utente. "transactionType" è "spesa" o "entrata" (usa sempre questi due valori interni, indipendentemente dalla lingua di risposta).`;
+Non inventare mai importi o categorie non menzionati dall'utente. "transactionType" è "spesa" o "entrata" (usa sempre questi due valori interni, indipendentemente dalla lingua di risposta). Usa correct_last SOLO quando è chiarissimo che l'utente si riferisce all'ultima operazione appena fatta, non a transazioni più vecchie.`;
 }
 
 function buildReceiptPrompt(account, lang) {
@@ -314,6 +366,8 @@ const T = {
     expense: "Uscita", income: "Entrata",
     txRegistered: (label, amt, note, cur) => `${label} registrata: ${currency(amt, cur)}${note ? " · " + note : ""}`,
     balanceSet: (amt, cur) => `Fatto! Saldo totale impostato a ${currency(amt, cur)}, categorie ricalcolate in base alle percentuali.`,
+    txCorrected: (label, oldAmt, newAmt, cur, bal) => `Corretto: ${label.toLowerCase()} era ${currency(oldAmt, cur)}, ora è ${currency(newAmt, cur)}. Saldo: ${currency(bal, cur)}.`,
+    txCorrectFailed: "Non ho trovato nessuna operazione recente da correggere.",
     dailyRecapBanner: (net, bal, cur) => `Ieri: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Saldo: ${currency(bal, cur)} — tocca per i dettagli`,
     dailyRecapMessage: (net, bal, cur) => `📊 Riepilogo di ieri: hai ${net >= 0 ? "guadagnato" : "speso"} ${currency(Math.abs(net), cur)} netti. Il tuo saldo attuale è ${currency(bal, cur)}.`,
     txFailed: "Non sono riuscito a registrarla, riprova.",
@@ -335,6 +389,8 @@ const T = {
     expense: "Expense", income: "Income",
     txRegistered: (label, amt, note, cur) => `${label} recorded: ${currency(amt, cur)}${note ? " · " + note : ""}`,
     balanceSet: (amt, cur) => `Done! Total balance set to ${currency(amt, cur)}, categories recalculated based on percentages.`,
+    txCorrected: (label, oldAmt, newAmt, cur, bal) => `Corrected: the ${label.toLowerCase()} was ${currency(oldAmt, cur)}, now it's ${currency(newAmt, cur)}. Balance: ${currency(bal, cur)}.`,
+    txCorrectFailed: "I couldn't find a recent transaction to correct.",
     dailyRecapBanner: (net, bal, cur) => `Yesterday: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Balance: ${currency(bal, cur)} — tap for details`,
     dailyRecapMessage: (net, bal, cur) => `📊 Yesterday's recap: you ${net >= 0 ? "earned" : "spent"} ${currency(Math.abs(net), cur)} net. Your current balance is ${currency(bal, cur)}.`,
     txFailed: "I couldn't record it, please try again.",
@@ -356,6 +412,8 @@ const T = {
     expense: "Cheltuială", income: "Venit",
     txRegistered: (label, amt, note, cur) => `${label} înregistrată: ${currency(amt, cur)}${note ? " · " + note : ""}`,
     balanceSet: (amt, cur) => `Gata! Soldul total a fost setat la ${currency(amt, cur)}, categoriile au fost recalculate pe baza procentelor.`,
+    txCorrected: (label, oldAmt, newAmt, cur, bal) => `Corectat: ${label.toLowerCase()} era ${currency(oldAmt, cur)}, acum este ${currency(newAmt, cur)}. Sold: ${currency(bal, cur)}.`,
+    txCorrectFailed: "Nu am găsit nicio operațiune recentă de corectat.",
     dailyRecapBanner: (net, bal, cur) => `Ieri: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Sold: ${currency(bal, cur)} — atinge pentru detalii`,
     dailyRecapMessage: (net, bal, cur) => `📊 Rezumatul de ieri: ai ${net >= 0 ? "câștigat" : "cheltuit"} ${currency(Math.abs(net), cur)} net. Soldul tău actual este ${currency(bal, cur)}.`,
     txFailed: "Nu am putut înregistra, încearcă din nou.",
@@ -377,6 +435,8 @@ const T = {
     expense: "Расход", income: "Доход",
     txRegistered: (label, amt, note, cur) => `${label} записан: ${currency(amt, cur)}${note ? " · " + note : ""}`,
     balanceSet: (amt, cur) => `Готово! Общий баланс установлен на ${currency(amt, cur)}, категории пересчитаны по процентам.`,
+    txCorrected: (label, oldAmt, newAmt, cur, bal) => `Исправлено: ${label.toLowerCase()} было ${currency(oldAmt, cur)}, теперь ${currency(newAmt, cur)}. Баланс: ${currency(bal, cur)}.`,
+    txCorrectFailed: "Не нашёл недавней операции для исправления.",
     dailyRecapBanner: (net, bal, cur) => `Вчера: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Баланс: ${currency(bal, cur)} — нажмите для подробностей`,
     dailyRecapMessage: (net, bal, cur) => `📊 Итоги вчерашнего дня: вы ${net >= 0 ? "заработали" : "потратили"} ${currency(Math.abs(net), cur)} нетто. Текущий баланс: ${currency(bal, cur)}.`,
     txFailed: "Не удалось записать, попробуйте ещё раз.",
@@ -398,6 +458,8 @@ const T = {
     expense: "支出", income: "收入",
     txRegistered: (label, amt, note, cur) => `${label}已记录：${currency(amt, cur)}${note ? " · " + note : ""}`,
     balanceSet: (amt, cur) => `完成！总余额已设置为${currency(amt, cur)}，各分类已按百分比重新计算。`,
+    txCorrected: (label, oldAmt, newAmt, cur, bal) => `已更正：${label}原本是${currency(oldAmt, cur)}，现在是${currency(newAmt, cur)}。余额：${currency(bal, cur)}。`,
+    txCorrectFailed: "没有找到可以更正的最近操作。",
     dailyRecapBanner: (net, bal, cur) => `昨天：${net >= 0 ? "+" : ""}${currency(net, cur)} · 余额：${currency(bal, cur)} — 点击查看详情`,
     dailyRecapMessage: (net, bal, cur) => `📊 昨日总结：你${net >= 0 ? "净收入" : "净支出"}了${currency(Math.abs(net), cur)}。当前余额为${currency(bal, cur)}。`,
     txFailed: "记录失败，请重试。",
@@ -875,6 +937,36 @@ function matchSetBalanceCommand(rawText) {
     if (m) {
       const val = parseFloat(m[1].replace(",", "."));
       if (!isNaN(val) && val >= 0) return val;
+    }
+  }
+  return null;
+}
+
+// Riconosce frasi tipo "era 25 non 20" / "it was 25 not 20" / "correggi a 25" per correggere
+// SOLO L'IMPORTO dell'ultima operazione registrata (tipo e categoria restano quelli originali).
+// Come SET_BALANCE_PATTERNS: riconoscimento rigido di frasi comuni, non vera comprensione del
+// linguaggio - frasi più creative passano comunque dal fallback AI (che conosce la stessa idea).
+const CORRECT_LAST_PATTERNS = [
+  // "era/erano X" da solo è troppo generico (es. "c'era 25 euro nel portafoglio"):
+  // richiedo che vicino ci sia anche "non"/"invece di", come nell'esempio reale "erano 25 non 20".
+  /\b(?:era|erano)\s+([\d.,]+)\s*(?:€|eur)?\s*(?:e\s+)?(?:non|invece\s+di)\b/i,
+  /corregg\w*(?:\s+l['’]ultima)?(?:\s+(?:spesa|entrata|operazione|transazione))?\s*(?:a\s+)?([\d.,]+)/i,
+  /\bit\s+was\s+([\d.,]+)\s*(?:€|eur|\$)?\s*,?\s*not\b/i,
+  /\bcorrect\s+(?:that|it|the\s+last\s+(?:expense|income|transaction))?\s*to\s+([\d.,]+)/i,
+  /\b(?:a\s+fost|era)\s+([\d.,]+).*?(?:^|\s)(?:nu|în\s+loc)(?:\s|$)/i,
+  /corecteaz[ăa]\w*.*?([\d.,]+)/i,
+  /(?:^|\s)было\s+([\d.,]+).*?(?:^|\s)а\s+не(?:\s|$)/i,
+  /исправ\w*.*?([\d.,]+)/i,
+  /应该是\s*([\d.,]+).*?不是/,
+  /改成\s*([\d.,]+)/,
+  /纠正.*?([\d.,]+)/,
+];
+function matchCorrectLastCommand(rawText) {
+  for (const re of CORRECT_LAST_PATTERNS) {
+    const m = rawText.match(re);
+    if (m) {
+      const val = parseFloat(m[1].replace(",", "."));
+      if (!isNaN(val) && val > 0) return val;
     }
   }
   return null;
@@ -1653,6 +1745,23 @@ export default function Finbar() {
       return;
     }
 
+    // ---- 1b) correzione dell'ultima operazione (es. "erano 25 non 20"): cambia solo l'importo, tipo e categoria restano gli stessi ----
+    const correctValue = matchCorrectLastCommand(text);
+    if (correctValue !== null) {
+      const last = account.transactions[0];
+      if (last && last.type !== "init") {
+        const { acc, ok, old } = correctLastTransactionAmount(account, correctValue);
+        if (ok) {
+          persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
+          const label = old.type === "spesa" ? tr.expense : tr.income;
+          await persistChat([...next, { role: "assistant", content: tr.txCorrected(label, old.amount, correctValue, account.currency, acc.totalBalance), ts: Date.now(), accountId: activeId }]);
+          return;
+        }
+      }
+      await persistChat([...next, { role: "assistant", content: tr.txCorrectFailed, ts: Date.now(), accountId: activeId }]);
+      return;
+    }
+
     // ---- 2) prova a dividere il messaggio in più comandi (es. "aggiungi €7 in trasporti e togli €2 da svago") ----
     const compoundSegments = splitCompoundSegments(text);
     if (compoundSegments) {
@@ -1732,6 +1841,17 @@ export default function Finbar() {
           txOk = commitTransaction({ transactionType: parsed.transactionType, amount: parsed.amount, category: parsed.category, note: parsed.note });
           const label = parsed.transactionType === "spesa" ? tr.expense : tr.income;
           displayText = txOk ? tr.txRegistered(label, parsed.amount, parsed.note, account.currency) : tr.txFailed;
+        } else if (parsed.type === "correct_last") {
+          const last = account.transactions[0];
+          const { acc: correctedAcc, ok: correctOk, old } = correctLastTransactionAmount(account, parsed.amount);
+          txOk = correctOk;
+          if (correctOk) {
+            persistAccounts({ ...accounts, [correctedAcc.id]: correctedAcc }, activeId);
+            const label = old.type === "spesa" ? tr.expense : tr.income;
+            displayText = tr.txCorrected(label, old.amount, parsed.amount, account.currency, correctedAcc.totalBalance);
+          } else {
+            displayText = tr.txCorrectFailed;
+          }
         } else if (parsed.type === "question" || parsed.type === "response") {
           displayText = parsed.question || parsed.text;
         }
