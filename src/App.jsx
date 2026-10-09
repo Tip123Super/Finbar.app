@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, Trash2, Wallet, Send, Mic, MicOff, Camera, X, Check, ArrowLeftRight,
-  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2, Download, Table, FileText, Bell,
+  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2, Download, Table, FileText, Bell, RotateCcw,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
@@ -229,10 +229,47 @@ function undoLastTransaction(account) {
   return { acc, ok: true, removed };
 }
 
+// Controllo leggero (nessuna copia dei dati) per sapere se l'ultima operazione del conto si può annullare:
+// "ok" | "none" (niente da annullare) | "noDetails" (operazione vecchia, senza breakdown)
+// | "pairBlocked" (trasferimento: nell'altro conto sono state registrate altre operazioni dopo).
+function undoCheck(accounts, accountId) {
+  const account = accounts[accountId];
+  const last = account && account.transactions[0];
+  if (!last || last.type === "init") return "none";
+  if (!last.breakdown) return "noDetails";
+  if (last.transferId) {
+    const holder = Object.entries(accounts).find(([id, a]) => id !== accountId && a.transactions.some((tx) => tx.transferId === last.transferId));
+    if (holder && holder[1].transactions[0].transferId !== last.transferId) return "pairBlocked";
+  }
+  return "ok";
+}
+
+// Annulla l'ultima operazione del conto attivo. Se è un trasferimento, annulla anche
+// la transazione gemella nell'altro conto (stesso transferId), così i due conti restano coerenti.
+function undoLastOperation(accounts, accountId) {
+  const reason = undoCheck(accounts, accountId);
+  if (reason !== "ok") return { ok: false, reason };
+  const last = accounts[accountId].transactions[0];
+  const { acc, ok, removed } = undoLastTransaction(accounts[accountId]);
+  if (!ok) return { ok: false, reason: "none" };
+  const next = { ...accounts, [accountId]: acc };
+  if (last.transferId) {
+    const holder = Object.entries(accounts).find(([id, a]) => id !== accountId && a.transactions.some((tx) => tx.transferId === last.transferId));
+    if (holder) {
+      const { acc: otherAcc, ok: ok2 } = undoLastTransaction(holder[1]);
+      if (ok2) next[holder[0]] = otherAcc;
+    }
+  }
+  return { ok: true, accounts: next, removed, account: acc };
+}
+
 // Corregge SOLO l'importo dell'ultima transazione (tipo, categoria e nota restano uguali):
 // annulla con esattezza l'originale, poi ri-applica con il nuovo importo, così eventuali
 // sforamenti/cascate sulle categorie si ricalcolano sempre in modo corretto da zero.
 function correctLastTransactionAmount(account, newAmount) {
+  const last0 = account.transactions[0];
+  // senza breakdown (operazioni vecchie) o se è un trasferimento tra conti non si può correggere con precisione
+  if (!last0 || !last0.breakdown || last0.transferId) return { acc: account, ok: false, old: null };
   const { acc: undone, ok, removed } = undoLastTransaction(account);
   if (!ok || !(newAmount > 0)) return { acc: account, ok: false, old: null };
   const categoryKey = removed.rawCategory || "TUTTE";
@@ -368,6 +405,8 @@ const T = {
     balanceSet: (amt, cur) => `Fatto! Saldo totale impostato a ${currency(amt, cur)}, categorie ricalcolate in base alle percentuali.`,
     txCorrected: (label, oldAmt, newAmt, cur, bal) => `Corretto: ${label.toLowerCase()} era ${currency(oldAmt, cur)}, ora è ${currency(newAmt, cur)}. Saldo: ${currency(bal, cur)}.`,
     txCorrectFailed: "Non ho trovato nessuna operazione recente da correggere.",
+    undoBtn: 'Annulla ultima', undoTitle: "Annullare l'ultima operazione?", undoAsk: (label, amt, cat, cur) => `${label}: ${currency(amt, cur)} · ${cat}. Saldo e categorie torneranno com'erano prima.`,
+    txUndone: (label, amt, cur, bal) => `Annullata: ${label.toLowerCase()} da ${currency(amt, cur)}. Saldo: ${currency(bal, cur)}.`, txUndoFailed: "Non c'è nessuna operazione da annullare.", txUndoNoDetails: 'Questa operazione è precedente agli ultimi aggiornamenti e non si può annullare con precisione.', txUndoBlocked: "Questo trasferimento non si può annullare: nell'altro conto sono state registrate altre operazioni dopo.",
     dailyRecapBanner: (net, bal, cur) => `Ieri: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Saldo: ${currency(bal, cur)} — tocca per i dettagli`,
     dailyRecapMessage: (net, bal, cur) => `📊 Riepilogo di ieri: hai ${net >= 0 ? "guadagnato" : "speso"} ${currency(Math.abs(net), cur)} netti. Il tuo saldo attuale è ${currency(bal, cur)}.`,
     txFailed: "Non sono riuscito a registrarla, riprova.",
@@ -391,6 +430,8 @@ const T = {
     balanceSet: (amt, cur) => `Done! Total balance set to ${currency(amt, cur)}, categories recalculated based on percentages.`,
     txCorrected: (label, oldAmt, newAmt, cur, bal) => `Corrected: the ${label.toLowerCase()} was ${currency(oldAmt, cur)}, now it's ${currency(newAmt, cur)}. Balance: ${currency(bal, cur)}.`,
     txCorrectFailed: "I couldn't find a recent transaction to correct.",
+    undoBtn: 'Undo last', undoTitle: 'Undo the last transaction?', undoAsk: (label, amt, cat, cur) => `${label}: ${currency(amt, cur)} · ${cat}. Balance and categories will go back to how they were.`,
+    txUndone: (label, amt, cur, bal) => `Undone: the ${label.toLowerCase()} of ${currency(amt, cur)}. Balance: ${currency(bal, cur)}.`, txUndoFailed: "There's no transaction to undo.", txUndoNoDetails: "This transaction predates the latest updates and can't be undone accurately.", txUndoBlocked: "This transfer can't be undone: other transactions were recorded in the other account afterwards.",
     dailyRecapBanner: (net, bal, cur) => `Yesterday: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Balance: ${currency(bal, cur)} — tap for details`,
     dailyRecapMessage: (net, bal, cur) => `📊 Yesterday's recap: you ${net >= 0 ? "earned" : "spent"} ${currency(Math.abs(net), cur)} net. Your current balance is ${currency(bal, cur)}.`,
     txFailed: "I couldn't record it, please try again.",
@@ -414,6 +455,8 @@ const T = {
     balanceSet: (amt, cur) => `Gata! Soldul total a fost setat la ${currency(amt, cur)}, categoriile au fost recalculate pe baza procentelor.`,
     txCorrected: (label, oldAmt, newAmt, cur, bal) => `Corectat: ${label.toLowerCase()} era ${currency(oldAmt, cur)}, acum este ${currency(newAmt, cur)}. Sold: ${currency(bal, cur)}.`,
     txCorrectFailed: "Nu am găsit nicio operațiune recentă de corectat.",
+    undoBtn: 'Anulează ultima', undoTitle: 'Anulezi ultima operațiune?', undoAsk: (label, amt, cat, cur) => `${label}: ${currency(amt, cur)} · ${cat}. Soldul și categoriile vor reveni cum erau.`,
+    txUndone: (label, amt, cur, bal) => `Anulat: ${label.toLowerCase()} de ${currency(amt, cur)}. Sold: ${currency(bal, cur)}.`, txUndoFailed: 'Nu există nicio operațiune de anulat.', txUndoNoDetails: 'Această operațiune este anterioară ultimelor actualizări și nu poate fi anulată cu precizie.', txUndoBlocked: 'Acest transfer nu poate fi anulat: în celălalt cont au fost înregistrate ulterior alte operațiuni.',
     dailyRecapBanner: (net, bal, cur) => `Ieri: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Sold: ${currency(bal, cur)} — atinge pentru detalii`,
     dailyRecapMessage: (net, bal, cur) => `📊 Rezumatul de ieri: ai ${net >= 0 ? "câștigat" : "cheltuit"} ${currency(Math.abs(net), cur)} net. Soldul tău actual este ${currency(bal, cur)}.`,
     txFailed: "Nu am putut înregistra, încearcă din nou.",
@@ -437,6 +480,8 @@ const T = {
     balanceSet: (amt, cur) => `Готово! Общий баланс установлен на ${currency(amt, cur)}, категории пересчитаны по процентам.`,
     txCorrected: (label, oldAmt, newAmt, cur, bal) => `Исправлено: ${label.toLowerCase()} было ${currency(oldAmt, cur)}, теперь ${currency(newAmt, cur)}. Баланс: ${currency(bal, cur)}.`,
     txCorrectFailed: "Не нашёл недавней операции для исправления.",
+    undoBtn: 'Отменить последнюю', undoTitle: 'Отменить последнюю операцию?', undoAsk: (label, amt, cat, cur) => `${label}: ${currency(amt, cur)} · ${cat}. Баланс и категории вернутся к прежним значениям.`,
+    txUndone: (label, amt, cur, bal) => `Отменено: ${label.toLowerCase()} на ${currency(amt, cur)}. Баланс: ${currency(bal, cur)}.`, txUndoFailed: 'Нет операции для отмены.', txUndoNoDetails: 'Эта операция была до последних обновлений, и её нельзя точно отменить.', txUndoBlocked: 'Этот перевод нельзя отменить: в другом счёте после него были другие операции.',
     dailyRecapBanner: (net, bal, cur) => `Вчера: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Баланс: ${currency(bal, cur)} — нажмите для подробностей`,
     dailyRecapMessage: (net, bal, cur) => `📊 Итоги вчерашнего дня: вы ${net >= 0 ? "заработали" : "потратили"} ${currency(Math.abs(net), cur)} нетто. Текущий баланс: ${currency(bal, cur)}.`,
     txFailed: "Не удалось записать, попробуйте ещё раз.",
@@ -460,6 +505,8 @@ const T = {
     balanceSet: (amt, cur) => `完成！总余额已设置为${currency(amt, cur)}，各分类已按百分比重新计算。`,
     txCorrected: (label, oldAmt, newAmt, cur, bal) => `已更正：${label}原本是${currency(oldAmt, cur)}，现在是${currency(newAmt, cur)}。余额：${currency(bal, cur)}。`,
     txCorrectFailed: "没有找到可以更正的最近操作。",
+    undoBtn: '撤销上一笔', undoTitle: '撤销最后一笔操作？', undoAsk: (label, amt, cat, cur) => `${label}：${currency(amt, cur)} · ${cat}。余额和分类将恢复原状。`,
+    txUndone: (label, amt, cur, bal) => `已撤销：${label}${currency(amt, cur)}。余额：${currency(bal, cur)}。`, txUndoFailed: '没有可以撤销的操作。', txUndoNoDetails: '这笔操作早于最近的更新，无法准确撤销。', txUndoBlocked: '无法撤销这笔转账：另一个账户之后又有新的操作。',
     dailyRecapBanner: (net, bal, cur) => `昨天：${net >= 0 ? "+" : ""}${currency(net, cur)} · 余额：${currency(bal, cur)} — 点击查看详情`,
     dailyRecapMessage: (net, bal, cur) => `📊 昨日总结：你${net >= 0 ? "净收入" : "净支出"}了${currency(Math.abs(net), cur)}。当前余额为${currency(bal, cur)}。`,
     txFailed: "记录失败，请重试。",
@@ -961,6 +1008,22 @@ const CORRECT_LAST_PATTERNS = [
   /改成\s*([\d.,]+)/,
   /纠正.*?([\d.,]+)/,
 ];
+// "annulla" / "undo" / "annulla l'ultima spesa" ...: SOLO se il messaggio intero è il comando
+// (ancorato ^...$), così non scatta mai per sbaglio dentro una frase normale.
+// Niente \w per russo (in JS non copre il cirillico): uso intervalli espliciti.
+const UNDO_LAST_PATTERNS = [
+  /^\s*annulla(?:\s+(?:l['’]\s*)?(?:ultima|ultimo))?(?:\s+(?:spesa|entrata|operazione|transazione|movimento))?\s*[.!]*\s*$/i,
+  /^\s*(?:cancella|elimina|togli|rimuovi)\s+(?:l['’]\s*)?(?:ultima|ultimo)(?:\s+(?:spesa|entrata|operazione|transazione|movimento))?\s*[.!]*\s*$/i,
+  /^\s*undo(?:\s+(?:that|it|last|the\s+last))?(?:\s+(?:expense|income|transaction|operation))?\s*[.!]*\s*$/i,
+  /^\s*(?:cancel|delete|remove)\s+(?:the\s+)?last(?:\s+(?:expense|income|transaction|operation))?\s*[.!]*\s*$/i,
+  /^\s*anuleaz[ăa](?:\s+ultima)?(?:\s+(?:cheltuial[ăa]|venit|opera[țt]iune|tranzac[țt]ie))?\s*[.!]*\s*$/i,
+  /^\s*отмен[а-яё]*(?:\s+послед[а-яё]*)?(?:\s+(?:расход|доход|операци[а-яё]*|транзакци[а-яё]*))?\s*[.!]*\s*$/i,
+  /^\s*(?:撤销|撤回|取消)(?:上一笔|最后一笔|上一次)?(?:操作|交易|支出|收入)?\s*[。.!！]*\s*$/,
+];
+function matchUndoLastCommand(rawText) {
+  return UNDO_LAST_PATTERNS.some((re) => re.test(rawText));
+}
+
 function matchCorrectLastCommand(rawText) {
   for (const re of CORRECT_LAST_PATTERNS) {
     const m = rawText.match(re);
@@ -1064,6 +1127,7 @@ export default function Finbar() {
   const [catSaveError, setCatSaveError] = useState(null);
   const [settingsSection, setSettingsSection] = useState(null);
   const [highlightedCatId, setHighlightedCatId] = useState(null);
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false);
 
   const scrollRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -1071,6 +1135,7 @@ export default function Finbar() {
 
   const t = THEMES[themeKey];
   const ui = UI[appLanguage] || UI.it;
+  const trUI = T[appLanguage] || T.it; // stringhe di T usate direttamente nel JSX (undo)
   const account = accounts[activeId];
   // fs(px): applica il fattore di ingrandimento testo scelto in Impostazioni.
   // Tocca solo fontSize, mai spaziature/icone/layout, così la scala resta leggibile senza rompere la UI.
@@ -1559,14 +1624,34 @@ export default function Finbar() {
   };
   const transferBetween = (fromId, toId, amount) => {
     if (!fromId || !toId || fromId === toId || !amount || amount <= 0) return;
-    const from = JSON.parse(JSON.stringify(accounts[fromId]));
-    const to = JSON.parse(JSON.stringify(accounts[toId]));
-    from.totalBalance -= amount;
-    to.totalBalance += amount;
-    from.transactions.unshift({ id: uid(), type: "spesa", amount, category: `Trasferito a ${to.name}`, note: "", date: todayISO() });
-    to.transactions.unshift({ id: uid(), type: "entrata", amount, category: `Ricevuto da ${from.name}`, note: "", date: todayISO() });
+    const transferId = uid(); // collega le due transazioni: servono per annullarle insieme
+    // Passa dalla stessa logica delle altre operazioni (breakdown + categorie), così saldo totale
+    // e categorie restano allineati; se il conto non ha categorie, ripiega sul solo saldo totale.
+    const build = (acc0, type, label) => {
+      const r = applyTransaction(acc0, { transactionType: type, amount, category: "TUTTE", note: "" });
+      if (r.ok) {
+        r.acc.transactions[0].category = label;
+        r.acc.transactions[0].transferId = transferId;
+        return r.acc;
+      }
+      const c = JSON.parse(JSON.stringify(acc0));
+      c.totalBalance += type === "spesa" ? -amount : amount;
+      c.transactions.unshift({ id: uid(), type, amount, category: label, note: "", date: todayISO(), transferId });
+      return c;
+    };
+    const fromName = accounts[fromId].name;
+    const toName = accounts[toId].name;
+    const from = build(accounts[fromId], "spesa", `Trasferito a ${toName}`);
+    const to = build(accounts[toId], "entrata", `Ricevuto da ${fromName}`);
     persistAccounts({ ...accounts, [from.id]: from, [to.id]: to }, activeId);
     setShowTransfer(false);
+  };
+
+  // Annulla l'ultima operazione del conto attivo (trasferimenti: entrambi i lati)
+  const undoLast = () => {
+    const res = undoLastOperation(accounts, activeId);
+    if (res.ok) persistAccounts(res.accounts, activeId);
+    return res;
   };
 
   // ---- transaction helpers ----
@@ -1759,6 +1844,19 @@ export default function Finbar() {
         }
       }
       await persistChat([...next, { role: "assistant", content: tr.txCorrectFailed, ts: Date.now(), accountId: activeId }]);
+      return;
+    }
+
+    // ---- 1c) "annulla" / "undo": toglie l'ultima operazione registrata ----
+    if (matchUndoLastCommand(text)) {
+      const res = undoLast();
+      let content;
+      if (res.ok) {
+        content = tr.txUndone(res.removed.type === "spesa" ? tr.expense : tr.income, res.removed.amount, account.currency, res.account.totalBalance);
+      } else {
+        content = res.reason === "pairBlocked" ? tr.txUndoBlocked : res.reason === "noDetails" ? tr.txUndoNoDetails : tr.txUndoFailed;
+      }
+      await persistChat([...next, { role: "assistant", content, ts: Date.now(), accountId: activeId, txOk: res.ok }]);
       return;
     }
 
@@ -2291,7 +2389,16 @@ export default function Finbar() {
             <div ref={tourHistoryRef} className="scrollbar" style={{ flex: 1, overflowY: "auto", padding: "6px 18px 18px" }}>
               {account.transactions.length === 0 && <div style={{ textAlign: "center", color: t.textMuted, fontSize: fs(13), marginTop: 40 }}>{ui.historyEmpty}</div>}
               {account.transactions.length > 0 && (
-                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  {undoCheck(accounts, activeId) === "ok" ? (
+                    <button
+                      onClick={() => setShowUndoConfirm(true)}
+                      style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "6px 10px", color: t.textMuted, cursor: "pointer", fontSize: fs(11.5) }}
+                    >
+                      <RotateCcw size={13} />
+                      {trUI.undoBtn}
+                    </button>
+                  ) : <span />}
                   <button
                     onClick={() => setShowExportChoice(true)}
                     style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "6px 10px", color: t.textMuted, cursor: "pointer", fontSize: fs(11.5) }}
@@ -2927,6 +3034,31 @@ export default function Finbar() {
           })()}
         </Modal>
       )}
+
+      {showUndoConfirm && account && undoCheck(accounts, activeId) === "ok" && (() => {
+        const last = account.transactions[0];
+        return (
+          <Modal onClose={() => setShowUndoConfirm(false)} title={trUI.undoTitle} t={t} fs={fs}>
+            <div style={{ fontSize: fs(13), color: t.textMuted, marginBottom: 16, lineHeight: 1.5 }}>
+              {trUI.undoAsk(last.type === "spesa" ? trUI.expense : trUI.income, last.amount, last.category, last.currency || account.currency)}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <button
+                onClick={() => setShowUndoConfirm(false)}
+                style={{ padding: "12px 10px", borderRadius: 10, border: `1px solid ${t.surfaceBorder}`, background: t.surfaceRow, color: t.textStrong, cursor: "pointer", fontSize: fs(13), fontWeight: 600 }}
+              >
+                {trUI.cancel}
+              </button>
+              <button
+                onClick={() => { undoLast(); setShowUndoConfirm(false); }}
+                style={{ padding: "12px 10px", borderRadius: 10, border: "none", background: t.accent, color: "#fff", cursor: "pointer", fontSize: fs(13), fontWeight: 700 }}
+              >
+                {trUI.confirm}
+              </button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {showExportChoice && account && (
         <Modal onClose={() => setShowExportChoice(false)} title={ui.exportHistory} t={t} fs={fs}>
