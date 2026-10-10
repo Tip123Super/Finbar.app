@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, Trash2, Wallet, Send, Mic, MicOff, Camera, X, Check, ArrowLeftRight,
-  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2, Download, Table, FileText, Bell, RotateCcw,
+  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2, Download, Table, FileText, Bell, RotateCcw, Archive, ChevronUp,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
@@ -407,6 +407,7 @@ const T = {
     txCorrectFailed: "Non ho trovato nessuna operazione recente da correggere.",
     undoBtn: 'Annulla ultima', undoTitle: "Annullare l'ultima operazione?", undoAsk: (label, amt, cat, cur) => `${label}: ${currency(amt, cur)} · ${cat}. Saldo e categorie torneranno com'erano prima.`,
     txUndone: (label, amt, cur, bal) => `Annullata: ${label.toLowerCase()} da ${currency(amt, cur)}. Saldo: ${currency(bal, cur)}.`, txUndoFailed: "Non c'è nessuna operazione da annullare.", txUndoNoDetails: 'Questa operazione è precedente agli ultimi aggiornamenti e non si può annullare con precisione.', txUndoBlocked: "Questo trasferimento non si può annullare: nell'altro conto sono state registrate altre operazioni dopo.",
+    archiveFromHere: "Archivia da qui in su", archivedBanner: (n) => `${n} ${n === 1 ? "messaggio archiviato" : "messaggi archiviati"}`, archivedShow: "Mostra", archivedHide: "Nascondi", archivedRestore: "Ripristina tutti", scrollUpAria: "Vai più su", scrollDownAria: "Vai più giù",
     dailyRecapBanner: (net, bal, cur) => `Ieri: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Saldo: ${currency(bal, cur)} — tocca per i dettagli`,
     dailyRecapMessage: (net, bal, cur) => `📊 Riepilogo di ieri: hai ${net >= 0 ? "guadagnato" : "speso"} ${currency(Math.abs(net), cur)} netti. Il tuo saldo attuale è ${currency(bal, cur)}.`,
     txFailed: "Non sono riuscito a registrarla, riprova.",
@@ -432,6 +433,7 @@ const T = {
     txCorrectFailed: "I couldn't find a recent transaction to correct.",
     undoBtn: 'Undo last', undoTitle: 'Undo the last transaction?', undoAsk: (label, amt, cat, cur) => `${label}: ${currency(amt, cur)} · ${cat}. Balance and categories will go back to how they were.`,
     txUndone: (label, amt, cur, bal) => `Undone: the ${label.toLowerCase()} of ${currency(amt, cur)}. Balance: ${currency(bal, cur)}.`, txUndoFailed: "There's no transaction to undo.", txUndoNoDetails: "This transaction predates the latest updates and can't be undone accurately.", txUndoBlocked: "This transfer can't be undone: other transactions were recorded in the other account afterwards.",
+    archiveFromHere: "Archive from here up", archivedBanner: (n) => `${n} archived message${n === 1 ? "" : "s"}`, archivedShow: "Show", archivedHide: "Hide", archivedRestore: "Restore all", scrollUpAria: "Scroll up", scrollDownAria: "Scroll down",
     dailyRecapBanner: (net, bal, cur) => `Yesterday: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Balance: ${currency(bal, cur)} — tap for details`,
     dailyRecapMessage: (net, bal, cur) => `📊 Yesterday's recap: you ${net >= 0 ? "earned" : "spent"} ${currency(Math.abs(net), cur)} net. Your current balance is ${currency(bal, cur)}.`,
     txFailed: "I couldn't record it, please try again.",
@@ -457,6 +459,7 @@ const T = {
     txCorrectFailed: "Nu am găsit nicio operațiune recentă de corectat.",
     undoBtn: 'Anulează ultima', undoTitle: 'Anulezi ultima operațiune?', undoAsk: (label, amt, cat, cur) => `${label}: ${currency(amt, cur)} · ${cat}. Soldul și categoriile vor reveni cum erau.`,
     txUndone: (label, amt, cur, bal) => `Anulat: ${label.toLowerCase()} de ${currency(amt, cur)}. Sold: ${currency(bal, cur)}.`, txUndoFailed: 'Nu există nicio operațiune de anulat.', txUndoNoDetails: 'Această operațiune este anterioară ultimelor actualizări și nu poate fi anulată cu precizie.', txUndoBlocked: 'Acest transfer nu poate fi anulat: în celălalt cont au fost înregistrate ulterior alte operațiuni.',
+    archiveFromHere: "Arhivează de aici în sus", archivedBanner: (n) => `${n} ${n === 1 ? "mesaj arhivat" : "mesaje arhivate"}`, archivedShow: "Arată", archivedHide: "Ascunde", archivedRestore: "Restaurează tot", scrollUpAria: "Mai sus", scrollDownAria: "Mai jos",
     dailyRecapBanner: (net, bal, cur) => `Ieri: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Sold: ${currency(bal, cur)} — atinge pentru detalii`,
     dailyRecapMessage: (net, bal, cur) => `📊 Rezumatul de ieri: ai ${net >= 0 ? "câștigat" : "cheltuit"} ${currency(Math.abs(net), cur)} net. Soldul tău actual este ${currency(bal, cur)}.`,
     txFailed: "Nu am putut înregistra, încearcă din nou.",
@@ -482,6 +485,7 @@ const T = {
     txCorrectFailed: "Не нашёл недавней операции для исправления.",
     undoBtn: 'Отменить последнюю', undoTitle: 'Отменить последнюю операцию?', undoAsk: (label, amt, cat, cur) => `${label}: ${currency(amt, cur)} · ${cat}. Баланс и категории вернутся к прежним значениям.`,
     txUndone: (label, amt, cur, bal) => `Отменено: ${label.toLowerCase()} на ${currency(amt, cur)}. Баланс: ${currency(bal, cur)}.`, txUndoFailed: 'Нет операции для отмены.', txUndoNoDetails: 'Эта операция была до последних обновлений, и её нельзя точно отменить.', txUndoBlocked: 'Этот перевод нельзя отменить: в другом счёте после него были другие операции.',
+    archiveFromHere: "Архивировать отсюда и выше", archivedBanner: (n) => `Архивировано сообщений: ${n}`, archivedShow: "Показать", archivedHide: "Скрыть", archivedRestore: "Восстановить все", scrollUpAria: "Выше", scrollDownAria: "Ниже",
     dailyRecapBanner: (net, bal, cur) => `Вчера: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Баланс: ${currency(bal, cur)} — нажмите для подробностей`,
     dailyRecapMessage: (net, bal, cur) => `📊 Итоги вчерашнего дня: вы ${net >= 0 ? "заработали" : "потратили"} ${currency(Math.abs(net), cur)} нетто. Текущий баланс: ${currency(bal, cur)}.`,
     txFailed: "Не удалось записать, попробуйте ещё раз.",
@@ -507,6 +511,7 @@ const T = {
     txCorrectFailed: "没有找到可以更正的最近操作。",
     undoBtn: '撤销上一笔', undoTitle: '撤销最后一笔操作？', undoAsk: (label, amt, cat, cur) => `${label}：${currency(amt, cur)} · ${cat}。余额和分类将恢复原状。`,
     txUndone: (label, amt, cur, bal) => `已撤销：${label}${currency(amt, cur)}。余额：${currency(bal, cur)}。`, txUndoFailed: '没有可以撤销的操作。', txUndoNoDetails: '这笔操作早于最近的更新，无法准确撤销。', txUndoBlocked: '无法撤销这笔转账：另一个账户之后又有新的操作。',
+    archiveFromHere: "归档此处及以上", archivedBanner: (n) => `已归档 ${n} 条消息`, archivedShow: "显示", archivedHide: "隐藏", archivedRestore: "全部恢复", scrollUpAria: "向上滚动", scrollDownAria: "向下滚动",
     dailyRecapBanner: (net, bal, cur) => `昨天：${net >= 0 ? "+" : ""}${currency(net, cur)} · 余额：${currency(bal, cur)} — 点击查看详情`,
     dailyRecapMessage: (net, bal, cur) => `📊 昨日总结：你${net >= 0 ? "净收入" : "净支出"}了${currency(Math.abs(net), cur)}。当前余额为${currency(bal, cur)}。`,
     txFailed: "记录失败，请重试。",
@@ -1128,6 +1133,12 @@ export default function Finbar() {
   const [settingsSection, setSettingsSection] = useState(null);
   const [highlightedCatId, setHighlightedCatId] = useState(null);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
+  const [showArchived, setShowArchived] = useState(false); // mostra i messaggi archiviati della chat
+  const [selectedMsgIdx, setSelectedMsgIdx] = useState(null); // indice (in messages) del messaggio toccato
+  const [chatArrows, setChatArrows] = useState({ show: false, atTop: true, atBottom: true }); // freccette di scorrimento
+  const arrowHideTimer = useRef(null);
+  const arrowClickRef = useRef({ dir: null, timer: null });
+  const ignoreScrollUntil = useRef(0); // scroll automatici (nuovo messaggio) non devono far apparire le freccette
 
   const scrollRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -1240,8 +1251,21 @@ export default function Finbar() {
   }, [appLanguage]);
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollRef.current) {
+      ignoreScrollUntil.current = Date.now() + 200;
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, [messages, tab, pendingReceipt]);
+
+  useEffect(() => {
+    setShowArchived(false);
+    setSelectedMsgIdx(null);
+  }, [activeId]);
+
+  useEffect(() => () => {
+    clearTimeout(arrowHideTimer.current);
+    clearTimeout(arrowClickRef.current.timer);
+  }, []);
 
   useEffect(() => {
     if (window.__finbarUpdateAvailable) setUpdateAvailable(true);
@@ -1993,6 +2017,60 @@ export default function Finbar() {
   };
 
   const chatForAccount = useMemo(() => messages.filter((m) => m.accountId === activeId), [messages, activeId]);
+  const archivedCount = chatForAccount.filter((m) => m.archived).length;
+  const visibleChat = showArchived ? chatForAccount : chatForAccount.filter((m) => !m.archived);
+
+  // Archivia (nasconde, ma non cancella) tutti i messaggi del conto attivo fino a quello scelto incluso.
+  const archiveUpTo = (msgIdx) => {
+    persistChat(messages.map((m, i) => (i <= msgIdx && m.accountId === activeId && !m.archived ? { ...m, archived: true } : m)));
+    setSelectedMsgIdx(null);
+  };
+  const restoreArchived = () => {
+    persistChat(messages.map((m) => {
+      if (m.accountId !== activeId || !m.archived) return m;
+      const { archived, ...rest } = m;
+      return rest;
+    }));
+    setShowArchived(false);
+  };
+
+  // Freccette di scorrimento: visibili solo mentre si scorre (spariscono dopo ~1,6 s di inattività).
+  const keepArrowsVisible = () => {
+    clearTimeout(arrowHideTimer.current);
+    arrowHideTimer.current = setTimeout(() => setChatArrows((a) => ({ ...a, show: false })), 1600);
+  };
+  const handleChatScroll = () => {
+    if (Date.now() < ignoreScrollUntil.current) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    setChatArrows({
+      show: true,
+      atTop: el.scrollTop < 8,
+      atBottom: el.scrollHeight - el.scrollTop - el.clientHeight < 8,
+    });
+    keepArrowsVisible();
+  };
+  // un tocco: scorre di circa una schermata; due tocchi ravvicinati: inizio / fine della chat.
+  const chatArrowClick = (dir) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setChatArrows((a) => ({ ...a, show: true }));
+    keepArrowsVisible();
+    const pending = arrowClickRef.current;
+    if (pending.timer && pending.dir === dir) {
+      clearTimeout(pending.timer);
+      arrowClickRef.current = { dir: null, timer: null };
+      el.scrollTo({ top: dir === "up" ? 0 : el.scrollHeight, behavior: "smooth" });
+      return;
+    }
+    clearTimeout(pending.timer);
+    const timer = setTimeout(() => {
+      arrowClickRef.current = { dir: null, timer: null };
+      const step = Math.max(80, el.clientHeight * 0.8);
+      el.scrollBy({ top: dir === "up" ? -step : step, behavior: "smooth" });
+    }, 250);
+    arrowClickRef.current = { dir, timer };
+  };
 
   const pieData = useMemo(() => {
     if (!account) return [];
@@ -2271,17 +2349,33 @@ export default function Finbar() {
           {/* ===== Chat tab ===== */}
           {tab === "chat" && (
             <>
-              <div ref={scrollRef} className="scrollbar" style={{ flex: 1, overflowY: "auto", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-                {chatForAccount.length === 0 && (
+              <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+              <div ref={scrollRef} onScroll={handleChatScroll} className="scrollbar" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+                {archivedCount > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: t.surfaceRow, border: `1px solid ${t.surfaceBorder}`, borderRadius: 12, padding: "8px 12px", fontSize: fs(12), color: t.textMuted }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Archive size={13} /> {trUI.archivedBanner(archivedCount)}</span>
+                    <span style={{ display: "flex", gap: 14 }}>
+                      {showArchived && (
+                        <button onClick={restoreArchived} style={{ background: "none", border: "none", color: t.accent, cursor: "pointer", fontSize: fs(12), fontWeight: 600, padding: 0 }}>{trUI.archivedRestore}</button>
+                      )}
+                      <button onClick={() => setShowArchived(!showArchived)} style={{ background: "none", border: "none", color: t.accent, cursor: "pointer", fontSize: fs(12), fontWeight: 600, padding: 0 }}>{showArchived ? trUI.archivedHide : trUI.archivedShow}</button>
+                    </span>
+                  </div>
+                )}
+                {visibleChat.length === 0 && (
                   <div style={{ textAlign: "center", color: t.textMuted, fontSize: fs(13), marginTop: 30, lineHeight: 1.7 }}>
                     {ui.chatEmpty1} <span style={{ color: t.textMuted, fontStyle: "italic" }}>{ui.chatEmptyExample}</span><br />
                     {ui.chatEmpty2}<br />
                     <span style={{ fontSize: fs(12), opacity: 0.85 }}>{ui.chatEmptySetBalance} <span style={{ fontStyle: "italic" }}>{ui.chatEmptySetBalanceExample}</span></span>
                   </div>
                 )}
-                {chatForAccount.map((m, i) => (
-                  <div key={i} className="in" style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                    <div style={{
+                {visibleChat.map((m, i) => {
+                  const msgIdx = messages.indexOf(m);
+                  const selected = selectedMsgIdx === msgIdx;
+                  return (
+                  <div key={i} className="in" style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", gap: 5, opacity: m.archived ? 0.6 : 1 }}>
+                    <div onClick={() => setSelectedMsgIdx(selected ? null : msgIdx)} style={{
+                      outline: selected ? `1.5px dashed ${t.accent}` : "none", outlineOffset: 2,
                       maxWidth: "82%", padding: "9px 13px", borderRadius: 15,
                       borderBottomRightRadius: m.role === "user" ? 4 : 15,
                       borderBottomLeftRadius: m.role === "user" ? 15 : 4,
@@ -2300,13 +2394,20 @@ export default function Finbar() {
                       {m.content}
                       {m.txOk && <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5, fontSize: fs(11), color: "#2ECC71" }}><Check size={11} /> Registrato</div>}
                       {m.role === "assistant" && (
-                        <button onClick={() => speak(m.content)} className="icon-btn" style={{ marginTop: 5, color: t.textMuted }} aria-label="Ascolta">
+                        <button onClick={(e) => { e.stopPropagation(); speak(m.content); }} className="icon-btn" style={{ marginTop: 5, color: t.textMuted }} aria-label="Ascolta">
                           <Volume2 size={12} />
                         </button>
                       )}
                     </div>
+                    {selected && !m.archived && (
+                      <button onClick={() => archiveUpTo(msgIdx)} style={{ display: "flex", alignItems: "center", gap: 6, background: t.surfaceAlt, border: `1px solid ${t.surfaceAltBorder}`, borderRadius: 14, padding: "5px 11px", color: t.textStrong, cursor: "pointer", fontSize: fs(11.5), fontWeight: 600 }}>
+                        <Archive size={12} />
+                        {trUI.archiveFromHere}
+                      </button>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
 
                 {pendingReceipt && (
                   <div className="in" style={{ alignSelf: "flex-start", maxWidth: "88%", background: t.surfaceRow, border: `1px solid ${t.accent}55`, borderRadius: 14, padding: 14 }}>
@@ -2338,6 +2439,24 @@ export default function Finbar() {
                 )}
 
                 {sending && <div style={{ fontSize: fs(13), color: t.textMuted }}>{(T[appLanguage] || T.it).thinking}</div>}
+              </div>
+
+              {/* freccette di scorrimento: appaiono solo mentre scorri */}
+              <div style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 6, opacity: chatArrows.show ? 1 : 0, pointerEvents: chatArrows.show ? "auto" : "none", transition: "opacity .25s" }}>
+                {[
+                  { dir: "up", Icon: ChevronUp, hidden: chatArrows.atTop, label: trUI.scrollUpAria },
+                  { dir: "down", Icon: ChevronDown, hidden: chatArrows.atBottom, label: trUI.scrollDownAria },
+                ].map(({ dir, Icon, hidden, label }) => (
+                  <button
+                    key={dir}
+                    aria-label={label}
+                    onClick={() => chatArrowClick(dir)}
+                    style={{ width: 34, height: 34, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: `${t.surface}E6`, border: `1px solid ${t.surfaceBorder}`, color: t.textMuted, cursor: "pointer", padding: 0, touchAction: "manipulation", opacity: hidden ? 0 : 0.9, pointerEvents: hidden ? "none" : "auto", transition: "opacity .2s" }}
+                  >
+                    <Icon size={18} />
+                  </button>
+                ))}
+              </div>
               </div>
 
               {error && <div style={{ padding: "0 16px", color: "#FF7A6B", fontSize: fs(12), marginBottom: 4 }}>{error}</div>}
