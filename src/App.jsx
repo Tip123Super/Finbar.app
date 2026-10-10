@@ -107,6 +107,14 @@ const currency = (n, code = "EUR") => {
 };
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// Fallback AI: se il parser locale non capisce un messaggio, si poteva chiederlo all'AI.
+// Per ora è DISATTIVATO: nessun testo dell'utente lascia il dispositivo verso servizi AI, e la
+// Privacy Policy (che non cita servizi AI) resta coerente con il comportamento reale.
+// Per riattivarlo un giorno: (1) mettere true; (2) NON chiamare api.anthropic.com direttamente dal
+// browser con una chiave — serve prima una funzione server (es. Vercel) che custodisca la chiave
+// e faccia da intermediario; (3) aggiornare Privacy Policy e Termini citando il fornitore AI.
+const AI_FALLBACK_ENABLED = false;
+
 // Spende da una categoria specifica. Se non ha abbastanza saldo, la porta esattamente
 // a 0 (mai sotto) e distribuisce la parte mancante sulle ALTRE categorie che hanno ancora
 // saldo positivo, in proporzione alle loro percentuali. Se anche una di queste non basta,
@@ -411,6 +419,7 @@ const T = {
     dailyRecapBanner: (net, bal, cur) => `Ieri: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Saldo: ${currency(bal, cur)} — tocca per i dettagli`,
     dailyRecapMessage: (net, bal, cur) => `📊 Riepilogo di ieri: hai ${net >= 0 ? "guadagnato" : "speso"} ${currency(Math.abs(net), cur)} netti. Il tuo saldo attuale è ${currency(bal, cur)}.`,
     txFailed: "Non sono riuscito a registrarla, riprova.",
+    txNotUnderstood: "Non ho capito. Prova a scrivere importo e categoria, ad esempio «ho speso 15 euro per il cibo» o «ho guadagnato 200 euro».",
     needCategory: (label, amt, cur) => `Ho capito ${label === "Uscita" ? "un'uscita" : "un'entrata"} di ${currency(amt, cur)}, ma non la categoria. Scegline una qui sotto:`,
     balanceAnswer: (name, amt, cur) => `Il saldo di ${name} è ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `Hai ${currency(amt, cur)} nella categoria ${cat}.`,
@@ -437,6 +446,7 @@ const T = {
     dailyRecapBanner: (net, bal, cur) => `Yesterday: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Balance: ${currency(bal, cur)} — tap for details`,
     dailyRecapMessage: (net, bal, cur) => `📊 Yesterday's recap: you ${net >= 0 ? "earned" : "spent"} ${currency(Math.abs(net), cur)} net. Your current balance is ${currency(bal, cur)}.`,
     txFailed: "I couldn't record it, please try again.",
+    txNotUnderstood: "I didn't get that. Try an amount and a category, for example “I spent 15 on food” or “I earned 200”.",
     needCategory: (label, amt, cur) => `I understood ${label === "Expense" ? "an expense" : "an income"} of ${currency(amt, cur)}, but not the category. Pick one below:`,
     balanceAnswer: (name, amt, cur) => `${name}'s balance is ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `You have ${currency(amt, cur)} in the ${cat} category.`,
@@ -463,6 +473,7 @@ const T = {
     dailyRecapBanner: (net, bal, cur) => `Ieri: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Sold: ${currency(bal, cur)} — atinge pentru detalii`,
     dailyRecapMessage: (net, bal, cur) => `📊 Rezumatul de ieri: ai ${net >= 0 ? "câștigat" : "cheltuit"} ${currency(Math.abs(net), cur)} net. Soldul tău actual este ${currency(bal, cur)}.`,
     txFailed: "Nu am putut înregistra, încearcă din nou.",
+    txNotUnderstood: "Nu am înțeles. Încearcă cu o sumă și o categorie, de exemplu „am cheltuit 15 la mâncare” sau „am câștigat 200”.",
     needCategory: (label, amt, cur) => `Am înțeles ${label === "Cheltuială" ? "o cheltuială" : "un venit"} de ${currency(amt, cur)}, dar nu categoria. Alege una mai jos:`,
     balanceAnswer: (name, amt, cur) => `Soldul contului ${name} este ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `Ai ${currency(amt, cur)} în categoria ${cat}.`,
@@ -489,6 +500,7 @@ const T = {
     dailyRecapBanner: (net, bal, cur) => `Вчера: ${net >= 0 ? "+" : ""}${currency(net, cur)} · Баланс: ${currency(bal, cur)} — нажмите для подробностей`,
     dailyRecapMessage: (net, bal, cur) => `📊 Итоги вчерашнего дня: вы ${net >= 0 ? "заработали" : "потратили"} ${currency(Math.abs(net), cur)} нетто. Текущий баланс: ${currency(bal, cur)}.`,
     txFailed: "Не удалось записать, попробуйте ещё раз.",
+    txNotUnderstood: "Не понял. Попробуйте указать сумму и категорию, например «потратил 15 на продукты» или «заработал 200».",
     needCategory: (label, amt, cur) => `Я понял ${label === "Расход" ? "расход" : "доход"} на ${currency(amt, cur)}, но не категорию. Выберите ниже:`,
     balanceAnswer: (name, amt, cur) => `Баланс «${name}»: ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `У вас ${currency(amt, cur)} в категории ${cat}.`,
@@ -515,6 +527,7 @@ const T = {
     dailyRecapBanner: (net, bal, cur) => `昨天：${net >= 0 ? "+" : ""}${currency(net, cur)} · 余额：${currency(bal, cur)} — 点击查看详情`,
     dailyRecapMessage: (net, bal, cur) => `📊 昨日总结：你${net >= 0 ? "净收入" : "净支出"}了${currency(Math.abs(net), cur)}。当前余额为${currency(bal, cur)}。`,
     txFailed: "记录失败，请重试。",
+    txNotUnderstood: "我没听懂。请试着写上金额和分类，例如“花了15买食物”或“赚了200”。",
     needCategory: (label, amt, cur) => `我识别到一笔${label === "支出" ? "支出" : "收入"} ${currency(amt, cur)}，但不知道分类。请选择：`,
     balanceAnswer: (name, amt, cur) => `${name}的余额是 ${currency(amt, cur)}。`,
     categoryBalanceAnswer: (amt, cat, cur) => `你在"${cat}"分类中有 ${currency(amt, cur)}。`,
@@ -1940,7 +1953,12 @@ export default function Finbar() {
       return;
     }
 
-    // ---- 4) fallback: solo se il parser locale non ha capito, chiedo all'AI ----
+    // ---- 4) fallback: solo se il parser locale non ha capito ----
+    if (!AI_FALLBACK_ENABLED) {
+      await persistChat([...next, { role: "assistant", content: tr.txNotUnderstood, ts: Date.now(), accountId: activeId }]);
+      return;
+    }
+    // (codice AI sotto: inattivo finché AI_FALLBACK_ENABLED è false — vedi nota in cima al file)
     setSending(true);
     try {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
