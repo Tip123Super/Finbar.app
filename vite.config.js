@@ -6,6 +6,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // Service worker scritto da noi (src/sw.js): serve per poter gestire le notifiche push.
+      // La cache offline e l'aggiornamento automatico restano identici a prima (vedi sw.js).
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.js",
       registerType: "autoUpdate",
       includeAssets: ["icon-192.png", "icon-512.png"],
       manifest: {
@@ -22,31 +27,9 @@ export default defineConfig({
           { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
-      workbox: {
+      injectManifest: {
         // precache dell'app (JS/CSS/HTML) per far partire l'app anche offline
         globPatterns: ["**/*.{js,css,html,png,svg,ico}"],
-        // cache runtime per i file che Tesseract.js scarica da CDN (motore OCR + dati lingua):
-        // la prima scansione richiede rete, quelle successive funzionano anche offline
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/.*/,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "tesseract-engine-cache",
-              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/tessdata\.projectnaptha\.com\/.*/,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "tesseract-lang-data-cache",
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
       },
     }),
   ],
