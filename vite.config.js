@@ -30,6 +30,9 @@ export default defineConfig({
       injectManifest: {
         // precache dell'app (JS/CSS/HTML) per far partire l'app anche offline
         globPatterns: ["**/*.{js,css,html,png,svg,ico}"],
+        // tetto per singolo file nella cache offline (il predefinito è 2 MiB): un file più grande verrebbe
+        // escluso in silenzio e l'app non partirebbe più offline
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
     }),
   ],

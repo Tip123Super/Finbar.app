@@ -33,6 +33,9 @@ const TEXT_SCALE_OPTIONS = [1, 1.15, 1.3, 1.5, 1.75, 2];
 const DAILY_RECAP_SEEN_KEY = "finex:daily-recap-seen";
 const NOTIF_RECAP_ENABLED_KEY = "finex:notif-recap-enabled";
 const NOTIF_RECAP_HOUR_KEY = "finex:notif-recap-hour";
+const PUSH_HIDE_AMOUNTS_KEY = "finex:push-hide-amounts";
+// Chiave pubblica VAPID per le notifiche push (non è segreta; la privata sta solo nei segreti di Supabase).
+const VAPID_PUBLIC_KEY = "BKHQiTELxMKhcohPqrGfjcEOPtsbPu1Dp9-bkzEkNdJtoDl2MYebXYQZ9MEHvLK456oprllimPVV9jWIi5YMbCc";
 const NOTIF_TIP_ENABLED_KEY = "finex:notif-tip-enabled";
 const NOTIF_TIP_SEEN_KEY = "finex:notif-tip-seen";
 
@@ -63,6 +66,52 @@ async function supabaseSaveWallet(code, data) {
     body: JSON.stringify({ p_code: code, p_data: data }),
   });
   if (!res.ok) throw new Error("sync save failed");
+}
+async function supabaseRpc(fn, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${fn} failed`);
+}
+
+// ---- Notifiche push ----
+function urlBase64ToUint8Array(b64) {
+  const padded = (b64 + "=".repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(padded);
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+// "ok" | "ios-install" (iPhone: serve l'app aggiunta alla Home) | "unsupported"
+function getPushSupport() {
+  try {
+    const ua = navigator.userAgent || "";
+    const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+    if (isIOS && !standalone) return "ios-install";
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return "unsupported";
+    return "ok";
+  } catch {
+    return "unsupported";
+  }
+}
+async function detectBrave() {
+  try { return !!(navigator.brave && (await navigator.brave.isBrave())); } catch { return false; }
+}
+// Invia (o aggiorna) l'iscrizione di questo dispositivo sul server, con le preferenze correnti.
+async function savePushSubscription(sub, prefs) {
+  const j = sub.toJSON();
+  await supabaseRpc("finex_push_subscribe", {
+    p_endpoint: j.endpoint,
+    p_p256dh: j.keys.p256dh,
+    p_auth: j.keys.auth,
+    p_sync_code: prefs.syncCode,
+    p_language: prefs.language,
+    p_tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Rome",
+    p_send_hour: prefs.hour,
+    p_daily_summary: prefs.recap,
+    p_hide_amounts: prefs.hide,
+  });
 }
 
 const DEFAULT_CATEGORIES = [
@@ -420,6 +469,7 @@ const T = {
     dailyRecapMessage: (net, bal, cur) => `📊 Riepilogo di ieri: hai ${net >= 0 ? "guadagnato" : "speso"} ${currency(Math.abs(net), cur)} netti. Il tuo saldo attuale è ${currency(bal, cur)}.`,
     txFailed: "Non sono riuscito a registrarla, riprova.",
     txNotUnderstood: "Non ho capito. Prova a scrivere importo e categoria, ad esempio «ho speso 15 euro per il cibo» o «ho guadagnato 200 euro».",
+    pushLabel: "Ricevilo anche come notifica sul telefono", pushDesc: "Una notifica al giorno con il riepilogo di ieri, all’ora scelta qui sopra. Richiede la sincronizzazione.", pushIntro: "Per comporre la notifica, il nostro server legge il tuo wallet sincronizzato. Salviamo inoltre l’indirizzo di notifica di questo dispositivo, la lingua, l’ora e il fuso orario. Puoi disattivarla quando vuoi: l’iscrizione viene cancellata. Dettagli nella Privacy Policy.", pushActivate: "Attiva", pushCancel: "Annulla", pushHideLabel: "Nascondi gli importi nella notifica", pushHideDesc: "La notifica dirà solo che il riepilogo è pronto.", pushUnsupported: "Questo browser non supporta le notifiche push.", pushIosInstall: "Su iPhone le notifiche funzionano solo con l’app aggiunta alla schermata Home: tocca Condividi → «Aggiungi alla schermata Home», poi riapri Finbar da lì.", pushNeedSync: "Per ricevere la notifica serve la sincronizzazione: il riepilogo viene composto dal server a partire dal tuo wallet.", pushGoSync: "Vai alla sincronizzazione", pushDenied: "Hai bloccato le notifiche per questo sito: riattivale dalle impostazioni del browser o del telefono, poi torna qui.", pushBrave: "Stai usando Brave: per ricevere le notifiche attiva «Use Google services for push messaging» in brave://settings/privacy.", pushError: "Non sono riuscito ad attivare le notifiche. Riprova più tardi.", pushActiveNote: (h) => `Riceverai il riepilogo ogni giorno alle ${String(h).padStart(2, "0")}:00.`,
     needCategory: (label, amt, cur) => `Ho capito ${label === "Uscita" ? "un'uscita" : "un'entrata"} di ${currency(amt, cur)}, ma non la categoria. Scegline una qui sotto:`,
     balanceAnswer: (name, amt, cur) => `Il saldo di ${name} è ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `Hai ${currency(amt, cur)} nella categoria ${cat}.`,
@@ -447,6 +497,7 @@ const T = {
     dailyRecapMessage: (net, bal, cur) => `📊 Yesterday's recap: you ${net >= 0 ? "earned" : "spent"} ${currency(Math.abs(net), cur)} net. Your current balance is ${currency(bal, cur)}.`,
     txFailed: "I couldn't record it, please try again.",
     txNotUnderstood: "I didn't get that. Try an amount and a category, for example “I spent 15 on food” or “I earned 200”.",
+    pushLabel: "Also get it as a phone notification", pushDesc: "One notification a day with yesterday’s recap, at the time chosen above. Requires sync.", pushIntro: "To compose the notification, our server reads your synced wallet. We also store this device’s notification address, your language, the time and your time zone. You can turn it off any time: the registration is deleted. Details in the Privacy Policy.", pushActivate: "Turn on", pushCancel: "Cancel", pushHideLabel: "Hide amounts in the notification", pushHideDesc: "The notification will only say the recap is ready.", pushUnsupported: "This browser doesn’t support push notifications.", pushIosInstall: "On iPhone, notifications only work with the app added to the Home Screen: tap Share → “Add to Home Screen”, then reopen Finbar from there.", pushNeedSync: "To get the notification you need sync: the recap is composed by the server from your wallet.", pushGoSync: "Go to sync", pushDenied: "You’ve blocked notifications for this site: re-enable them in your browser or phone settings, then come back here.", pushBrave: "You’re using Brave: to receive notifications, turn on “Use Google services for push messaging” in brave://settings/privacy.", pushError: "I couldn’t turn on notifications. Please try again later.", pushActiveNote: (h) => `You’ll get the recap every day at ${String(h).padStart(2, "0")}:00.`,
     needCategory: (label, amt, cur) => `I understood ${label === "Expense" ? "an expense" : "an income"} of ${currency(amt, cur)}, but not the category. Pick one below:`,
     balanceAnswer: (name, amt, cur) => `${name}'s balance is ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `You have ${currency(amt, cur)} in the ${cat} category.`,
@@ -474,6 +525,7 @@ const T = {
     dailyRecapMessage: (net, bal, cur) => `📊 Rezumatul de ieri: ai ${net >= 0 ? "câștigat" : "cheltuit"} ${currency(Math.abs(net), cur)} net. Soldul tău actual este ${currency(bal, cur)}.`,
     txFailed: "Nu am putut înregistra, încearcă din nou.",
     txNotUnderstood: "Nu am înțeles. Încearcă cu o sumă și o categorie, de exemplu „am cheltuit 15 la mâncare” sau „am câștigat 200”.",
+    pushLabel: "Primește-l și ca notificare pe telefon", pushDesc: "O notificare pe zi cu rezumatul de ieri, la ora aleasă mai sus. Necesită sincronizarea.", pushIntro: "Pentru a compune notificarea, serverul nostru citește portofelul tău sincronizat. Salvăm și adresa de notificare a acestui dispozitiv, limba, ora și fusul orar. O poți dezactiva oricând: înregistrarea este ștearsă. Detalii în Politica de confidențialitate.", pushActivate: "Activează", pushCancel: "Anulează", pushHideLabel: "Ascunde sumele în notificare", pushHideDesc: "Notificarea va spune doar că rezumatul este gata.", pushUnsupported: "Acest browser nu acceptă notificările push.", pushIosInstall: "Pe iPhone, notificările funcționează doar cu aplicația adăugată pe ecranul principal: atinge Partajează → „Adaugă pe ecranul principal”, apoi redeschide Finbar de acolo.", pushNeedSync: "Pentru a primi notificarea este necesară sincronizarea: rezumatul este compus de server pe baza portofelului tău.", pushGoSync: "Mergi la sincronizare", pushDenied: "Ai blocat notificările pentru acest site: reactivează-le din setările browserului sau ale telefonului, apoi revino aici.", pushBrave: "Folosești Brave: pentru a primi notificări, activează „Use Google services for push messaging” în brave://settings/privacy.", pushError: "Nu am reușit să activez notificările. Încearcă din nou mai târziu.", pushActiveNote: (h) => `Vei primi rezumatul în fiecare zi la ${String(h).padStart(2, "0")}:00.`,
     needCategory: (label, amt, cur) => `Am înțeles ${label === "Cheltuială" ? "o cheltuială" : "un venit"} de ${currency(amt, cur)}, dar nu categoria. Alege una mai jos:`,
     balanceAnswer: (name, amt, cur) => `Soldul contului ${name} este ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `Ai ${currency(amt, cur)} în categoria ${cat}.`,
@@ -501,6 +553,7 @@ const T = {
     dailyRecapMessage: (net, bal, cur) => `📊 Итоги вчерашнего дня: вы ${net >= 0 ? "заработали" : "потратили"} ${currency(Math.abs(net), cur)} нетто. Текущий баланс: ${currency(bal, cur)}.`,
     txFailed: "Не удалось записать, попробуйте ещё раз.",
     txNotUnderstood: "Не понял. Попробуйте указать сумму и категорию, например «потратил 15 на продукты» или «заработал 200».",
+    pushLabel: "Получать также уведомлением на телефон", pushDesc: "Одно уведомление в день со сводкой за вчера, в выбранное выше время. Требуется синхронизация.", pushIntro: "Чтобы составить уведомление, наш сервер читает ваш синхронизированный кошелёк. Мы также сохраняем адрес уведомлений этого устройства, язык, время и часовой пояс. Отключить можно в любой момент: подписка удаляется. Подробности — в Политике конфиденциальности.", pushActivate: "Включить", pushCancel: "Отмена", pushHideLabel: "Скрывать суммы в уведомлении", pushHideDesc: "В уведомлении будет только сообщение, что сводка готова.", pushUnsupported: "Этот браузер не поддерживает push-уведомления.", pushIosInstall: "На iPhone уведомления работают только если приложение добавлено на экран «Домой»: нажмите «Поделиться» → «На экран „Домой“», затем откройте Finbar оттуда.", pushNeedSync: "Для уведомления нужна синхронизация: сводку составляет сервер на основе вашего кошелька.", pushGoSync: "Перейти к синхронизации", pushDenied: "Вы заблокировали уведомления для этого сайта: включите их в настройках браузера или телефона и вернитесь сюда.", pushBrave: "Вы используете Brave: чтобы получать уведомления, включите «Use Google services for push messaging» в brave://settings/privacy.", pushError: "Не удалось включить уведомления. Попробуйте позже.", pushActiveNote: (h) => `Вы будете получать сводку каждый день в ${String(h).padStart(2, "0")}:00.`,
     needCategory: (label, amt, cur) => `Я понял ${label === "Расход" ? "расход" : "доход"} на ${currency(amt, cur)}, но не категорию. Выберите ниже:`,
     balanceAnswer: (name, amt, cur) => `Баланс «${name}»: ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `У вас ${currency(amt, cur)} в категории ${cat}.`,
@@ -528,6 +581,7 @@ const T = {
     dailyRecapMessage: (net, bal, cur) => `📊 昨日总结：你${net >= 0 ? "净收入" : "净支出"}了${currency(Math.abs(net), cur)}。当前余额为${currency(bal, cur)}。`,
     txFailed: "记录失败，请重试。",
     txNotUnderstood: "我没听懂。请试着写上金额和分类，例如“花了15买食物”或“赚了200”。",
+    pushLabel: "同时以手机通知的形式接收", pushDesc: "每天一条通知，在上面选择的时间发送昨日总结。需要同步。", pushIntro: "为了生成通知，我们的服务器会读取你已同步的钱包。我们还会保存此设备的通知地址、语言、时间和时区。你可以随时关闭：订阅信息会被删除。详情见隐私政策。", pushActivate: "开启", pushCancel: "取消", pushHideLabel: "在通知中隐藏金额", pushHideDesc: "通知只会提示总结已准备好。", pushUnsupported: "此浏览器不支持推送通知。", pushIosInstall: "在 iPhone 上，只有将应用添加到主屏幕后通知才可用：点按“分享”→“添加到主屏幕”，然后从主屏幕重新打开 Finbar。", pushNeedSync: "接收通知需要开启同步：总结由服务器根据你的钱包生成。", pushGoSync: "前往同步", pushDenied: "你已阻止此网站的通知：请在浏览器或手机设置中重新开启，然后回到这里。", pushBrave: "你正在使用 Brave：要接收通知，请在 brave://settings/privacy 中开启“Use Google services for push messaging”。", pushError: "无法开启通知，请稍后再试。", pushActiveNote: (h) => `你每天 ${String(h).padStart(2, "0")}:00 会收到总结。`,
     needCategory: (label, amt, cur) => `我识别到一笔${label === "支出" ? "支出" : "收入"} ${currency(amt, cur)}，但不知道分类。请选择：`,
     balanceAnswer: (name, amt, cur) => `${name}的余额是 ${currency(amt, cur)}。`,
     categoryBalanceAnswer: (amt, cat, cur) => `你在"${cat}"分类中有 ${currency(amt, cur)}。`,
@@ -1147,6 +1201,14 @@ export default function Finbar() {
   const [highlightedCatId, setHighlightedCatId] = useState(null);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const [showArchived, setShowArchived] = useState(false); // mostra i messaggi archiviati della chat
+  const [pushSupport, setPushSupport] = useState("ok"); // "ok" | "ios-install" | "unsupported"
+  const [pushPermission, setPushPermission] = useState("default"); // permesso del browser
+  const [pushOn, setPushOn] = useState(false); // questo dispositivo è iscritto alle notifiche
+  const [pushHide, setPushHide] = useState(false); // nascondi gli importi nella notifica
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState(null); // null | "brave" | "generic"
+  const [showPushIntro, setShowPushIntro] = useState(false);
+  const [braveBrowser, setBraveBrowser] = useState(false);
   const [selectedMsgIdx, setSelectedMsgIdx] = useState(null); // indice (in messages) del messaggio toccato
   const [chatArrows, setChatArrows] = useState({ show: false, atTop: true, atBottom: true }); // freccette di scorrimento
   const arrowHideTimer = useRef(null);
@@ -1279,6 +1341,48 @@ export default function Finbar() {
     clearTimeout(arrowHideTimer.current);
     clearTimeout(arrowClickRef.current.timer);
   }, []);
+
+  // Notifiche push: stato iniziale (supporto, permesso, iscrizione esistente, preferenza "nascondi importi")
+  useEffect(() => {
+    setPushSupport(getPushSupport());
+    if (typeof Notification !== "undefined") setPushPermission(Notification.permission);
+    detectBrave().then(setBraveBrowser);
+    (async () => {
+      try {
+        const r = await window.storage.get(PUSH_HIDE_AMOUNTS_KEY, false);
+        if (r && r.value === "1") setPushHide(true);
+      } catch {}
+      try {
+        if (getPushSupport() === "ok" && Notification.permission === "granted") {
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.getSubscription();
+          setPushOn(!!sub);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  // Se le notifiche sono attive, tiene aggiornata l'iscrizione sul server (all'avvio e quando cambiano
+  // lingua, orario, interruttori o codice di sincronizzazione). Se la sincronizzazione viene tolta, le spegne.
+  useEffect(() => {
+    if (loading || !pushOn) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub || cancelled) return;
+        if (!syncCode) {
+          try { await supabaseRpc("finex_push_unsubscribe", { p_endpoint: sub.endpoint }); } catch {}
+          await sub.unsubscribe();
+          if (!cancelled) setPushOn(false);
+          return;
+        }
+        await savePushSubscription(sub, { syncCode, language: appLanguage, hour: recapMinHour, recap: recapEnabled, hide: pushHide });
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [loading, pushOn, syncCode, appLanguage, recapMinHour, recapEnabled, pushHide]);
 
   useEffect(() => {
     if (window.__finbarUpdateAvailable) setUpdateAvailable(true);
@@ -1683,6 +1787,69 @@ export default function Finbar() {
     persistAccounts({ ...accounts, [from.id]: from, [to.id]: to }, activeId);
     setShowTransfer(false);
   };
+
+  // ---- Notifiche push: attivazione / disattivazione ----
+  const enablePush = async () => {
+    setPushError(null);
+    setPushBusy(true);
+    let createdSub = null;
+    try {
+      if (!syncCode) throw new Error("need-sync");
+      const perm = await Notification.requestPermission(); // dentro il tocco dell'utente, altrimenti il browser lo ignora
+      setPushPermission(perm);
+      if (perm !== "granted") return;
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
+        createdSub = sub;
+      }
+      await savePushSubscription(sub, { syncCode, language: appLanguage, hour: recapMinHour, recap: recapEnabled, hide: pushHide });
+      setPushOn(true);
+      setShowPushIntro(false);
+    } catch (e) {
+      // se il server non ha registrato l'iscrizione, non lascio il dispositivo iscritto a metà
+      try { if (createdSub) await createdSub.unsubscribe(); } catch {}
+      setPushError(braveBrowser ? "brave" : "generic");
+    } finally {
+      setPushBusy(false);
+    }
+  };
+  const disablePush = async () => {
+    setPushBusy(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        // se il server non è raggiungibile, l'iscrizione verrà comunque rimossa al primo invio (il servizio push risponde "scaduta")
+        try { await supabaseRpc("finex_push_unsubscribe", { p_endpoint: sub.endpoint }); } catch {}
+        await sub.unsubscribe();
+      }
+      setPushOn(false);
+    } catch {}
+    setPushBusy(false);
+  };
+  const handlePushToggle = () => {
+    if (pushBusy) return;
+    if (pushOn) disablePush();
+    else { setPushError(null); setShowPushIntro(!showPushIntro); }
+  };
+  const changePushHide = async (val) => {
+    setPushHide(val);
+    try { await window.storage.set(PUSH_HIDE_AMOUNTS_KEY, val ? "1" : "0", false); } catch {}
+  };
+  // perché l'interruttore non si può usare (null = tutto a posto)
+  const pushBlocked = pushSupport !== "ok" ? pushSupport : !syncCode ? "need-sync" : pushPermission === "denied" ? "denied" : null;
+  const renderToggle = (on, onClick, label, disabled = false) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      style={{ flexShrink: 0, width: 46, height: 26, borderRadius: 13, border: "none", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.45 : 1, background: on ? t.accent : t.surfaceBorder, position: "relative", transition: "background 0.15s" }}
+    >
+      <div style={{ position: "absolute", top: 3, left: on ? 23 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
+    </button>
+  );
 
   // Annulla l'ultima operazione del conto attivo (trasferimenti: entrambi i lati)
   const undoLast = () => {
@@ -2958,6 +3125,52 @@ export default function Finbar() {
                       <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {recapEnabled && (
+                <div style={{ marginTop: 10, background: t.surfaceRow, border: `1px solid ${t.surfaceBorder}`, borderRadius: 12, padding: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: fs(13), fontWeight: 600, color: t.textStrong, marginBottom: 4 }}>{trUI.pushLabel}</div>
+                      <div style={{ fontSize: fs(11.5), color: t.textMuted, lineHeight: 1.5 }}>{pushOn ? trUI.pushActiveNote(recapMinHour) : trUI.pushDesc}</div>
+                    </div>
+                    {renderToggle(pushOn, handlePushToggle, pushOn ? ui.notifOn : ui.notifOff, pushBusy || (!pushOn && !!pushBlocked))}
+                  </div>
+
+                  {!pushOn && pushBlocked && (
+                    <div style={{ marginTop: 10, fontSize: fs(11.5), color: t.textMuted, lineHeight: 1.55 }}>
+                      {pushBlocked === "ios-install" ? trUI.pushIosInstall : pushBlocked === "unsupported" ? trUI.pushUnsupported : pushBlocked === "need-sync" ? trUI.pushNeedSync : trUI.pushDenied}
+                      {pushBlocked === "need-sync" && (
+                        <button onClick={() => setSettingsSection("sync")} style={{ display: "block", marginTop: 8, background: "none", border: "none", color: t.accent, cursor: "pointer", fontSize: fs(12), fontWeight: 600, padding: 0 }}>{trUI.pushGoSync}</button>
+                      )}
+                    </div>
+                  )}
+
+                  {showPushIntro && !pushOn && !pushBlocked && (
+                    <div style={{ marginTop: 10, background: t.surfaceAlt, border: `1px solid ${t.surfaceAltBorder}`, borderRadius: 10, padding: 12 }}>
+                      <div style={{ fontSize: fs(11.5), color: t.textStrong, lineHeight: 1.55, marginBottom: braveBrowser ? 8 : 10 }}>{trUI.pushIntro}</div>
+                      {braveBrowser && <div style={{ fontSize: fs(11.5), color: t.textMuted, lineHeight: 1.55, marginBottom: 10 }}>{trUI.pushBrave}</div>}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        <button onClick={() => setShowPushIntro(false)} style={{ padding: "10px 8px", borderRadius: 10, border: `1px solid ${t.surfaceBorder}`, background: t.surfaceRow, color: t.textStrong, cursor: "pointer", fontSize: fs(12.5), fontWeight: 600 }}>{trUI.pushCancel}</button>
+                        <button onClick={enablePush} disabled={pushBusy} style={{ padding: "10px 8px", borderRadius: 10, border: "none", background: t.accent, color: "#fff", cursor: pushBusy ? "default" : "pointer", opacity: pushBusy ? 0.6 : 1, fontSize: fs(12.5), fontWeight: 700 }}>{trUI.pushActivate}</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {pushError && (
+                    <div style={{ marginTop: 10, fontSize: fs(11.5), color: t.textMuted, lineHeight: 1.55 }}>{pushError === "brave" ? trUI.pushBrave : trUI.pushError}</div>
+                  )}
+
+                  {pushOn && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.surfaceBorder}` }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: fs(12.5), fontWeight: 600, color: t.textStrong, marginBottom: 3 }}>{trUI.pushHideLabel}</div>
+                        <div style={{ fontSize: fs(11.5), color: t.textMuted, lineHeight: 1.5 }}>{trUI.pushHideDesc}</div>
+                      </div>
+                      {renderToggle(pushHide, () => changePushHide(!pushHide), pushHide ? ui.notifOn : ui.notifOff)}
+                    </div>
+                  )}
                 </div>
               )}
 
