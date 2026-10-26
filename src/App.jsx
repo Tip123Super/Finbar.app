@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, Trash2, Wallet, Send, Mic, MicOff, Camera, X, Check, ArrowLeftRight,
-  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2, Download, Table, FileText, Bell, RotateCcw, Archive, ChevronUp,
+  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2, Download, Table, FileText, Bell, RotateCcw, Archive, ChevronUp, Calendar, Pencil,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
@@ -225,6 +225,7 @@ function newAccount(name, initialBalance, currencyCode) {
     totalBalance: initialBalance,
     categories: cats,
     recurring: [],
+    dues: [], // scadenze e debiti a rate (vedi "Scadenze e debiti")
     learnedTerms: {}, // parole imparate dalle scelte manuali dell'utente: { parola: categoryId }
     customTypeWords: {}, // parole insegnate esplicitamente dall'utente (es. "vinto=guadagno"): { parola: "entrata"|"spesa" }
     transactions: initialBalance
@@ -283,6 +284,11 @@ function undoLastTransaction(account) {
     });
   }
   acc.totalBalance -= removed.type === "spesa" ? -removed.amount : removed.amount;
+  if (removed.dueRestore) {
+    // il pagamento annullato apparteneva a una scadenza: la rimetto com'era prima di toccare "Pagato"
+    const r = removed.dueRestore;
+    acc.dues = (acc.dues || []).filter((d) => d.id !== r.id).concat([r]);
+  }
   return { acc, ok: true, removed };
 }
 
@@ -326,7 +332,7 @@ function undoLastOperation(accounts, accountId) {
 function correctLastTransactionAmount(account, newAmount) {
   const last0 = account.transactions[0];
   // senza breakdown (operazioni vecchie) o se è un trasferimento tra conti non si può correggere con precisione
-  if (!last0 || !last0.breakdown || last0.transferId) return { acc: account, ok: false, old: null };
+  if (!last0 || !last0.breakdown || last0.transferId || last0.dueId) return { acc: account, ok: false, old: null };
   const { acc: undone, ok, removed } = undoLastTransaction(account);
   if (!ok || !(newAmount > 0)) return { acc: account, ok: false, old: null };
   const categoryKey = removed.rawCategory || "TUTTE";
@@ -335,6 +341,346 @@ function correctLastTransactionAmount(account, newAmount) {
   });
   return ok2 ? { acc: redone, ok: true, old: removed } : { acc: account, ok: false, old: null };
 }
+
+// ---- Scadenze e debiti ----
+// Una scadenza è un pagamento (o un incasso) da ricordare in una data. A differenza di una ricorrenza
+// NON si registra da sola: quando l'utente tocca "Pagato" si registra la spesa e la scadenza avanza
+// (o si chiude, se era l'ultima rata). Le date sono giorni di calendario "locali" in formato YYYY-MM-DD
+// e i calcoli sono fatti in UTC puro, così il fuso orario non sposta mai il giorno di uno.
+const pad2 = (n) => String(n).padStart(2, "0");
+function localTodayISO(now = new Date()) {
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+}
+function isoParts(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return { y, m, d };
+}
+function partsISO(y, m, d) {
+  return `${String(y).padStart(4, "0")}-${pad2(m)}-${pad2(d)}`;
+}
+function daysInMonth(y, m) {
+  return new Date(Date.UTC(y, m, 0)).getUTCDate(); // m = 1..12
+}
+function isValidYMD(y, m, d) {
+  return Number.isInteger(y) && Number.isInteger(m) && Number.isInteger(d) && m >= 1 && m <= 12 && d >= 1 && d <= daysInMonth(y, m);
+}
+function addDaysISO(iso, n) {
+  const { y, m, d } = isoParts(iso);
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return partsISO(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+}
+function daysBetweenISO(a, b) {
+  const pa = isoParts(a);
+  const pb = isoParts(b);
+  return Math.round((Date.UTC(pb.y, pb.m - 1, pb.d) - Date.UTC(pa.y, pa.m - 1, pa.d)) / 86400000);
+}
+// Prossima data di una scadenza ripetuta, ancorata al giorno originale (es. il 31 → ultimo giorno dei mesi più corti).
+function nextDueDate(due, fromISO) {
+  const { y, m } = isoParts(fromISO);
+  const anchor = isoParts(due.anchor || due.date);
+  if (due.repeat === "weekly") return addDaysISO(fromISO, 7);
+  if (due.repeat === "yearly") {
+    const ny = y + 1;
+    return partsISO(ny, anchor.m, Math.min(anchor.d, daysInMonth(ny, anchor.m)));
+  }
+  let ny = y;
+  let nm = m + 1;
+  if (nm > 12) { nm = 1; ny += 1; }
+  return partsISO(ny, nm, Math.min(anchor.d, daysInMonth(ny, nm)));
+}
+
+const DUE_LOCALES = { it: "it-IT", en: "en-GB", ro: "ro-RO", ru: "ru-RU", zh: "zh-CN" };
+function formatDueDate(iso, lang, { weekday = false, year = false } = {}) {
+  const { y, m, d } = isoParts(iso);
+  try {
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(DUE_LOCALES[lang] || "it-IT", {
+      timeZone: "UTC", weekday: weekday ? "long" : undefined, day: "numeric", month: "long", year: year ? "numeric" : undefined,
+    });
+  } catch {
+    return iso;
+  }
+}
+// "oggi" / "domani" / "tra 5 giorni" / "scaduta da 3 giorni"
+function dueWhenText(days, tr) {
+  if (days < 0) return tr.duesOverdue(-days);
+  if (days === 0) return tr.duesToday;
+  if (days === 1) return tr.duesTomorrow;
+  return tr.duesInDays(days);
+}
+// Scadute + quelle entro la finestra indicata, in ordine di data.
+function upcomingDues(account, todayISO, windowDays = 14) {
+  return (account.dues || [])
+    .filter((d) => daysBetweenISO(todayISO, d.date) <= windowDays)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+// Debito a rate: quante ne restano (compresa quella in corso) e il totale approssimato.
+function dueRate(due) {
+  if (!due.installments) return null;
+  const { total, paid } = due.installments;
+  const left = total - paid;
+  return { k: paid + 1, total, left, leftAmount: Math.round(left * due.amount * 100) / 100 };
+}
+function makeDue(fields) {
+  if (!fields || !fields.label || !(fields.amount > 0) || !fields.date) return null;
+  const p = isoParts(fields.date);
+  if (!isValidYMD(p.y, p.m, p.d)) return null;
+  let inst = null;
+  if (fields.installments && fields.installments.total > 0) {
+    inst = { total: Math.floor(fields.installments.total), paid: Math.max(0, Math.floor(fields.installments.paid || 0)) };
+    if (inst.paid >= inst.total) return null;
+  }
+  let repeat = ["weekly", "monthly", "yearly"].includes(fields.repeat) ? fields.repeat : "none";
+  if (inst && repeat === "none") repeat = "monthly";
+  return {
+    id: fields.id || uid(),
+    label: String(fields.label).trim().slice(0, 60),
+    amount: Math.round(fields.amount * 100) / 100,
+    type: fields.type === "entrata" ? "entrata" : "spesa",
+    category: fields.category || "", // "" = si sceglie al momento di pagare
+    date: fields.date,
+    anchor: fields.date,
+    repeat,
+    installments: inst,
+    remindDays: 1, // per le notifiche (passo successivo)
+  };
+}
+// Registra il pagamento e fa avanzare (o chiude) la scadenza. La transazione porta con sé lo stato precedente
+// della scadenza (dueRestore), così "annulla" può rimetterla esattamente com'era.
+function payDue(account, dueId, categoryOverride) {
+  const due = (account.dues || []).find((d) => d.id === dueId);
+  if (!due) return { acc: account, ok: false };
+  const ownCat = due.category && (due.category === "TUTTE" || account.categories[due.category]) ? due.category : "";
+  const category = ownCat || categoryOverride;
+  if (!category || (category !== "TUTTE" && !account.categories[category])) return { acc: account, ok: false, needCategory: true };
+  const snapshot = JSON.parse(JSON.stringify(due));
+  const res = applyTransaction(account, { transactionType: due.type, amount: due.amount, category, note: due.label });
+  if (!res.ok) return { acc: account, ok: false };
+  const acc = res.acc;
+  acc.transactions[0].dueId = due.id;
+  acc.transactions[0].dueRestore = snapshot;
+  let next = null;
+  let cleared = false;
+  if (due.installments) {
+    const paid = due.installments.paid + 1;
+    if (paid < due.installments.total) {
+      next = { ...due, installments: { total: due.installments.total, paid }, date: nextDueDate({ ...due, repeat: due.repeat === "none" ? "monthly" : due.repeat }, due.date) };
+    } else {
+      cleared = true;
+    }
+  } else if (due.repeat !== "none") {
+    next = { ...due, date: nextDueDate(due, due.date) };
+  }
+  acc.dues = (acc.dues || []).filter((d) => d.id !== due.id).concat(next ? [next] : []);
+  return { acc, ok: true, due, nextDate: next ? next.date : null, cleared };
+}
+
+// ---- Scadenze: riconoscimento dei comandi in chat (5 lingue) ----
+// Mesi in italiano, inglese, rumeno e russo (testo già normalizzato: minuscolo, senza accenti; in russo "й" diventa "и").
+const DUE_MONTH_SRC = [
+  "gennaio|gen|january|jan|ianuarie|ian|январ[ьяюе]?",
+  "febbraio|feb|february|februarie|феврал[ьяюе]?",
+  "marzo|mar|march|martie|март[ае]?",
+  "aprile|apr|april|aprilie|апрел[ьяюе]?",
+  "maggio|mag|may|mai|ма[яиюе]",
+  "giugno|giu|june|jun|iunie|iun|июн[ьяюе]?",
+  "luglio|lug|july|jul|iulie|iul|июл[ьяюе]?",
+  "agosto|ago|august|aug|август[ае]?",
+  "settembre|set|september|sept|sep|septembrie|сентябр[ьяюе]?",
+  "ottobre|ott|october|oct|octombrie|октябр[ьяюе]?",
+  "novembre|nov|november|noiembrie|ноябр[ьяюе]?",
+  "dicembre|dic|december|dec|decembrie|декабр[ьяюе]?",
+];
+const DUE_MONTH_RES = DUE_MONTH_SRC.map((s) => new RegExp(`^(?:${s})$`));
+function dueMonthOf(token) {
+  const i = DUE_MONTH_RES.findIndex((re) => re.test(token));
+  return i < 0 ? 0 : i + 1;
+}
+// Come normalizeText ma carattere per carattere, così la lunghezza non cambia e le posizioni trovate
+// nel testo normalizzato valgono anche nel testo originale (da cui ritagliamo il nome della scadenza).
+function normalizeSameLength(s) {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const n = s[i].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    out += n.length === 1 ? n : s[i];
+  }
+  return out;
+}
+const DUE_TRIGGER_RE = /(?<![a-zа-я])(?:ricordami|ricordati|promemoria|avvisami|remind\s+me|reminder|amintes[a-z]*[\s-]*mi|reamintes[a-z]*[\s-]*mi|memento|напомни(?:ть)?|напоминани[ея])(?![a-zа-я])|提醒/;
+const DUE_REPEAT_RES = [
+  ["weekly", /ogni\s+settimana|every\s+week|weekly|in\s+fiecare\s+saptamana|каждую\s+неделю|каждая\s+неделя|每周|每星期/],
+  ["monthly", /ogni\s+mese|every\s+month|monthly|in\s+fiecare\s+luna|каждый\s+месяц|каждого\s+месяца|каждыи\s+месяц|每月|每个月/],
+  ["yearly", /ogni\s+anno|every\s+year|yearly|annually|in\s+fiecare\s+an|каждый\s+год|каждого\s+года|каждыи\s+год|每年/],
+];
+const DUE_INCOME_RE = /(?<![a-zа-я])(?:incasso|incassare|incassero|riscuotere|ricevere|ricevo|mi\s+pagano|mi\s+devono|mi\s+arriva|stipendio|receive|get\s+paid|collect|income|salary|incasez|incasare|primesc|salariu|получить|получу|зарплат[а-я]*|поступлен[а-я]*)(?![a-zа-я])|收到|收入|工资|收款/;
+const DUE_CURRENCY = "(?:€|eur(?:o|os)?|usd|dollar[ie]?|\\$|£|gbp|lei|ron|mdl|руб[а-я]*|₽|евро|元|块|塊|¥|欧元|欧)";
+
+// Cerca la data nel testo normalizzato. Ritorna { iso, rolled, start, end } oppure null.
+function dueFindDate(norm, todayISO) {
+  const t = isoParts(todayISO);
+  const yearOf = (s) => (!s ? null : s.length === 2 ? 2000 + parseInt(s, 10) : s.length === 4 ? parseInt(s, 10) : NaN);
+  const resolve = (y, mo, d, start, end) => {
+    let rolled = false;
+    let year = y;
+    if (year == null) {
+      year = t.y;
+      for (let k = 0; k < 5; k++) { // es. 29 febbraio: passa al primo anno in cui esiste
+        if (isValidYMD(year, mo, d) && partsISO(year, mo, d) >= todayISO) break;
+        year += 1;
+        rolled = true;
+      }
+    }
+    if (!isValidYMD(year, mo, d) || Number.isNaN(year)) return null;
+    return { iso: partsISO(year, mo, d), rolled, start, end };
+  };
+  let m;
+  // 1) 2026-11-23
+  m = norm.match(/(?<![0-9])(20\d{2})-(\d{2})-(\d{2})(?![0-9])/);
+  if (m) { const r = resolve(+m[1], +m[2], +m[3], m.index, m.index + m[0].length); if (r) return r; }
+  // 2) cinese: 11月23日 / 2026年11月23日
+  m = norm.match(/(?:(20\d{2})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*[日号號]?/);
+  if (m) { const r = resolve(m[1] ? +m[1] : null, +m[2], +m[3], m.index, m.index + m[0].length); if (r) return r; }
+  // 3) 23/11 oppure 23/11/2026 (giorno/mese; se il primo numero è ≤12 e il secondo >12, è mese/giorno)
+  for (const x of norm.matchAll(/(?<![0-9/.])(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?![0-9/])/g)) {
+    let a = +x[1];
+    let b = +x[2];
+    let day = a;
+    let mon = b;
+    if (a <= 12 && b > 12) { mon = a; day = b; }
+    const y = yearOf(x[3]);
+    if (Number.isNaN(y)) continue;
+    const r = resolve(y, mon, day, x.index, x.index + x[0].length);
+    if (r) return r;
+  }
+  // 4) 23.11.2026 / 23-11-26 (solo con l'anno, per non confondere un importo come 12.5 con una data)
+  m = norm.match(/(?<![0-9.\-])(\d{1,2})[.\-](\d{1,2})[.\-](\d{4}|\d{2})(?![0-9])/);
+  if (m) { const r = resolve(yearOf(m[3]), +m[2], +m[1], m.index, m.index + m[0].length); if (r) return r; }
+  // 5) 23 novembre / 23 di novembre / 23rd of November / 23 ноября (+ anno)
+  for (const x of norm.matchAll(/(?<![0-9])(\d{1,2})(?:º|°|st|nd|rd|th)?\s*(?:(?:di|of|de)\s+|d['’]\s*)?([a-zа-яё]{3,})(?:\s*,?\s*(20\d{2})(?![0-9]))?/g)) {
+    const mon = dueMonthOf(x[2]);
+    if (!mon) continue;
+    const r = resolve(x[3] ? +x[3] : null, mon, +x[1], x.index, x.index + x[0].length);
+    if (r) return r;
+  }
+  // 6) November 23 / Nov 23rd, 2026
+  for (const x of norm.matchAll(/(?<![a-zа-яё])([a-zа-яё]{3,})\s*(\d{1,2})(?:st|nd|rd|th)?(?![0-9a-zа-яё])(?:\s*,?\s*(20\d{2})(?![0-9]))?/g)) {
+    const mon = dueMonthOf(x[1]);
+    if (!mon) continue;
+    const r = resolve(x[3] ? +x[3] : null, mon, +x[2], x.index, x.index + x[0].length);
+    if (r) return r;
+  }
+  // 7) relative: dopodomani / domani / oggi / tra N giorni (anche nelle altre lingue)
+  const rel = (re, days) => {
+    const x = norm.match(re);
+    return x ? { iso: addDaysISO(todayISO, days), rolled: false, start: x.index, end: x.index + x[0].length } : null;
+  };
+  m = norm.match(/(?<![a-zа-я])(?:tra|fra|in|peste|через)\s+(\d{1,3})\s*(?:giorni|giorno|days?|zile|zi|дней|днеи|дня|день)(?![a-zа-я])|(\d{1,3})\s*天[后後]/);
+  if (m) return { iso: addDaysISO(todayISO, +(m[1] || m[2])), rolled: false, start: m.index, end: m.index + m[0].length };
+  return (
+    rel(/(?<![a-zа-я])(?:dopodomani|day\s+after\s+tomorrow|poimaine|послезавтра)(?![a-zа-я])|后天|後天/, 2) ||
+    rel(/(?<![a-zа-я])(?:domani|tomorrow|maine|завтра)(?![a-zа-я])|明天|明日/, 1) ||
+    rel(/(?<![a-zа-я])(?:oggi|today|azi|сегодня)(?![a-zа-я])|今天|今日/, 0)
+  );
+}
+// Importo: preferisce il numero vicino a un simbolo/parola di valuta; gestisce 1.200,50 e 1,200.50.
+function dueFindAmount(norm) {
+  const cands = [];
+  for (const x of norm.matchAll(/(\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?(?![0-9])|\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)/g)) {
+    const raw = x[1];
+    const start = x.index;
+    const end = start + raw.length;
+    const after = norm.slice(end, end + 12);
+    const before = norm.slice(Math.max(0, start - 8), start);
+    const curAfter = after.match(new RegExp(`^\\s*${DUE_CURRENCY}`));
+    const curBefore = before.match(new RegExp(`${DUE_CURRENCY}\\s*$`));
+    let value;
+    if (/^\d{1,3}([ \u00a0\u202f]\d{3})+([.,]\d{1,2})?$/.test(raw)) value = parseFloat(raw.replace(/[ \u00a0\u202f]/g, "").replace(",", "."));
+    else if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(raw)) value = parseFloat(raw.replace(/\./g, "").replace(",", "."));
+    else if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(raw)) value = parseFloat(raw.replace(/,/g, ""));
+    else value = parseFloat(raw.replace(",", "."));
+    if (!(value > 0) || value >= 1e9) continue;
+    cands.push({
+      value,
+      near: !!(curAfter || curBefore),
+      start: curBefore ? start - curBefore[0].length : start,
+      end: curAfter ? end + curAfter[0].length : end,
+    });
+  }
+  return cands.find((c) => c.near) || cands[0] || null;
+}
+const DUE_FILLER_ANY = new Set([
+  "ricordami", "ricordati", "promemoria", "avvisami", "che", "devo", "dobbiamo", "dovro", "pagare", "pago", "euro", "eur", "euros",
+  "remind", "me", "that", "need", "needs", "must", "have", "pay", "should", "usd", "ca", "sa", "trebuie", "platesc", "lei", "ron",
+  "напомни", "мне", "надо", "нужно", "что", "заплатить", "оплатить",
+]);
+const DUE_FILLER_EDGE = new Set([
+  "il", "lo", "la", "le", "i", "gli", "l", "un", "una", "uno", "di", "del", "dello", "della", "dei", "a", "al", "alla", "da", "per", "entro", "in", "su", "e",
+  "the", "an", "to", "for", "on", "by", "of", "and", "pe", "de", "din", "pentru", "si", "за", "на", "в", "до", "к", "по", "и",
+]);
+const DUE_DEFAULT_LABEL = { it: "Scadenza", en: "Due payment", ro: "Scadență", ru: "Платёж", zh: "到期付款" };
+function dueExtractLabel(rawWork, normWork, lang) {
+  let text = rawWork;
+  // dopo "per" / "for" / "pentru" / "за" c'è l'oggetto del pagamento
+  const kw = normWork.match(/(?<![a-zа-я])(?:per|for|pentru|за)(?![a-zа-я])|[为為]|用于|关于/);
+  if (kw) {
+    const after = text.slice(kw.index + kw[0].length);
+    if (after.trim().length >= 2) text = after;
+  }
+  const clean = (w) => normalizeText(w).replace(/[^a-zа-яё0-9']/g, "");
+  let toks = text.split(/\s+/).filter(Boolean).filter((w) => !DUE_FILLER_ANY.has(clean(w)));
+  while (toks.length && DUE_FILLER_EDGE.has(clean(toks[0]))) toks.shift();
+  while (toks.length && DUE_FILLER_EDGE.has(clean(toks[toks.length - 1]))) toks.pop();
+  let label = toks.join(" ");
+  label = label.replace(/提醒我?|需要|我|要|得|付款|支付|付|请|把|块|塊|欧元|元|欧/g, "");
+  label = label.replace(/^(?:l|un|dell|all|dall|sull|nell|d)['’]\s*/i, "").replace(/^[\s,.;:!?\-–]+|[\s,.;:!?\-–]+$/g, "");
+  if (!label) return DUE_DEFAULT_LABEL[lang] || DUE_DEFAULT_LABEL.it;
+  label = label.slice(0, 60);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+// Riconosce "ricordami che il 23 novembre devo pagare 200 per l'assicurazione" (e gli equivalenti in en/ro/ru/zh).
+// Ritorna null se il messaggio non è un promemoria; { ok:false, reason } se lo è ma manca la data o l'importo;
+// altrimenti { ok:true, due: {...campi}, rolled } (rolled = la data di quest'anno era passata: ho scelto l'anno dopo).
+function parseDueCommand(rawText, todayISO, lang, account) {
+  const raw = rawText.normalize("NFC");
+  const norm = normalizeSameLength(raw);
+  const trig = norm.match(DUE_TRIGGER_RE);
+  if (!trig) return null;
+  let work = norm;
+  let rawWork = raw;
+  const cut = (a, b) => {
+    work = work.slice(0, a) + " ".repeat(b - a) + work.slice(b);
+    rawWork = rawWork.slice(0, a) + " ".repeat(b - a) + rawWork.slice(b);
+  };
+  cut(trig.index, trig.index + trig[0].length);
+  const found = dueFindDate(work, todayISO);
+  if (!found) return { ok: false, reason: "date" };
+  cut(found.start, found.end);
+  let repeat = "none";
+  for (const [key, re] of DUE_REPEAT_RES) {
+    const x = work.match(re);
+    if (x) { repeat = key; cut(x.index, x.index + x[0].length); break; }
+  }
+  const isIncome = DUE_INCOME_RE.test(work);
+  const amt = dueFindAmount(work);
+  if (!amt) return { ok: false, reason: "amount" };
+  cut(amt.start, amt.end);
+  const label = dueExtractLabel(rawWork, work, lang);
+  let category = "";
+  if (account && account.categories) category = detectCategory(normalizeText(label), account.categories, account.learnedTerms) || "";
+  return { ok: true, rolled: found.rolled, due: { label, amount: amt.value, type: isIncome ? "entrata" : "spesa", category, date: found.iso, repeat } };
+}
+// "quali scadenze ho?" / "what's due" / "scadențe" / "мои платежи" / "到期款项": solo se è l'intero messaggio.
+const DUE_LIST_PATTERNS = [
+  /^(?:quali|che|mostrami|mostra|elenca|dimmi)?\s*(?:le\s+)?(?:mie\s+)?(?:prossime\s+)?scadenze(?:\s+ho)?\s*[?.!]*$/,
+  /^(?:what(?:'s|\s+is)?\s+due|what\s+(?:deadlines|payments)\s+do\s+i\s+have|(?:show|list)\s+(?:me\s+)?(?:my\s+|the\s+)?(?:upcoming\s+)?(?:deadlines|dues|payments)|(?:my\s+|upcoming\s+)(?:deadlines|dues|payments)|deadlines)\s*[?.!]*$/,
+  /^(?:ce\s+)?(?:arata(?:-mi)?\s+)?(?:urmatoarele\s+|scadentele\s+mele|scadentele|scadente)(?:\s+am)?\s*[?.!]*$/,
+  /^(?:какие\s+)?(?:у\s+меня\s+)?(?:предстоящие\s+|ближайшие\s+|мои\s+)?(?:платежи|сроки|напоминания)(?:\s+у\s+меня)?\s*[?.!]*$/,
+  /^(?:我的|查看|显示)?(?:近期|即将)?(?:到期|待付款|待付)(?:的)?(?:款项|付款|账单|事项|提醒)?(?:有哪些|是什么)?\s*[？?。.!！]*$/,
+];
+function matchDueListCommand(rawText) {
+  const n = normalizeText(rawText).trim();
+  return DUE_LIST_PATTERNS.some((re) => re.test(n));
+}
+
 
 // ---- recurring income/expenses (stipendi, pagette, abbonamenti…) ----
 const RECURRING_KINDS = { biglietto: "Biglietto/viaggio", abbonamento: "Abbonamento", altro: "Altro" };
@@ -470,6 +816,7 @@ const T = {
     txFailed: "Non sono riuscito a registrarla, riprova.",
     txNotUnderstood: "Non ho capito. Prova a scrivere importo e categoria, ad esempio «ho speso 15 euro per il cibo» o «ho guadagnato 200 euro».",
     pushLabel: "Ricevilo anche come notifica sul telefono", pushDesc: "Una notifica al giorno con il riepilogo di ieri, all’ora scelta qui sopra. Richiede la sincronizzazione.", pushIntro: "Per comporre la notifica, il nostro server legge il tuo wallet sincronizzato. Salviamo inoltre l’indirizzo di notifica di questo dispositivo, la lingua, l’ora e il fuso orario. Puoi disattivarla quando vuoi: l’iscrizione viene cancellata. Dettagli nella Privacy Policy.", pushActivate: "Attiva", pushCancel: "Annulla", pushHideLabel: "Nascondi gli importi nella notifica", pushHideDesc: "La notifica dirà solo che il riepilogo è pronto.", pushUnsupported: "Questo browser non supporta le notifiche push.", pushIosInstall: "Su iPhone le notifiche funzionano solo con l’app aggiunta alla schermata Home: tocca Condividi → «Aggiungi alla schermata Home», poi riapri Finbar da lì.", pushNeedSync: "Per ricevere la notifica serve la sincronizzazione: il riepilogo viene composto dal server a partire dal tuo wallet.", pushGoSync: "Vai alla sincronizzazione", pushDenied: "Hai bloccato le notifiche per questo sito: riattivale dalle impostazioni del browser o del telefono, poi torna qui.", pushBrave: "Stai usando Brave: per ricevere le notifiche attiva «Use Google services for push messaging» in brave://settings/privacy.", pushError: "Non sono riuscito ad attivare le notifiche. Riprova più tardi.", pushActiveNote: (h) => `Riceverai il riepilogo ogni giorno alle ${String(h).padStart(2, "0")}:00.`,
+    duesMenu: "Scadenze e debiti", duesIntro: "Ricorda pagamenti e rate. Quando paghi tocca «Pagato»: la spesa viene registrata e la scadenza avanza.", duesEmpty: "Nessuna scadenza. Scrivi in chat «ricordami che il 23 novembre devo pagare 200» oppure aggiungila qui sotto.", duesCardTitle: "Prossime scadenze", duesSeeAll: "Vedi tutte", duesPaidBtn: "Pagato", duesReceivedBtn: "Incassato", duesToday: "oggi", duesTomorrow: "domani", duesNamePh: "es. Assicurazione auto", duesDateLabel: "Scade il", duesRepeatNone: "Una volta sola", duesWeekly: "Ogni settimana", duesMonthly: "Ogni mese", duesYearly: "Ogni anno", duesCategoryAsk: "Scelgo quando pago", duesInstTotalPh: "Rate in tutto", duesInstPaidPh: "Già pagate", duesInstHint: "Facoltativo, per un debito a rate: quante rate ci sono in tutto e quante ne hai già pagate.", duesAddBtn: "Aggiungi scadenza", duesSaveBtn: "Salva modifiche", duesCancelBtn: "Annulla", duesFormError: "Controlla nome, importo, data ed eventuali rate.", duesPickCategory: "In quale categoria registro il pagamento?", duesPayFailed: "Non sono riuscito a registrare il pagamento: controlla la categoria della scadenza.", dueHelp: "Non ho capito la data o l'importo. Prova così: «ricordami che il 23 novembre devo pagare 200 per l'assicurazione».", dueListHeader: "Prossime scadenze:", dueListEmpty: "Non hai scadenze in programma.", duesInDays: (n) => `tra ${n} giorni`, duesOverdue: (n) => `scaduta da ${n} ${n === 1 ? "giorno" : "giorni"}`, duesRateInfo: (k, total, left, amt) => `rata ${k} di ${total} · restano ${left} · ≈ ${amt}`, dueAdded: (label, when, amount, cur, isIncome, rep) => `Promemoria creato: ${when} · ${currency(amount, cur)} · ${label}${rep ? ` · ${rep}` : ""}. Quando ${isIncome ? "l'hai incassato" : "hai pagato"}, tocca «${isIncome ? "Incassato" : "Pagato"}» nella Dashboard. Per cambiarlo o toglierlo: Impostazioni → Scadenze e debiti.`, duePaidMsg: (label, amount, cur, bal, nextWhen, cleared, isIncome) => `${isIncome ? "Incassato" : "Pagato"}: ${label} · ${currency(amount, cur)}. Saldo: ${currency(bal, cur)}.${cleared ? " Era l'ultima rata: debito estinto." : nextWhen ? ` Prossima scadenza: ${nextWhen}.` : ""}`,
     needCategory: (label, amt, cur) => `Ho capito ${label === "Uscita" ? "un'uscita" : "un'entrata"} di ${currency(amt, cur)}, ma non la categoria. Scegline una qui sotto:`,
     balanceAnswer: (name, amt, cur) => `Il saldo di ${name} è ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `Hai ${currency(amt, cur)} nella categoria ${cat}.`,
@@ -498,6 +845,7 @@ const T = {
     txFailed: "I couldn't record it, please try again.",
     txNotUnderstood: "I didn't get that. Try an amount and a category, for example “I spent 15 on food” or “I earned 200”.",
     pushLabel: "Also get it as a phone notification", pushDesc: "One notification a day with yesterday’s recap, at the time chosen above. Requires sync.", pushIntro: "To compose the notification, our server reads your synced wallet. We also store this device’s notification address, your language, the time and your time zone. You can turn it off any time: the registration is deleted. Details in the Privacy Policy.", pushActivate: "Turn on", pushCancel: "Cancel", pushHideLabel: "Hide amounts in the notification", pushHideDesc: "The notification will only say the recap is ready.", pushUnsupported: "This browser doesn’t support push notifications.", pushIosInstall: "On iPhone, notifications only work with the app added to the Home Screen: tap Share → “Add to Home Screen”, then reopen Finbar from there.", pushNeedSync: "To get the notification you need sync: the recap is composed by the server from your wallet.", pushGoSync: "Go to sync", pushDenied: "You’ve blocked notifications for this site: re-enable them in your browser or phone settings, then come back here.", pushBrave: "You’re using Brave: to receive notifications, turn on “Use Google services for push messaging” in brave://settings/privacy.", pushError: "I couldn’t turn on notifications. Please try again later.", pushActiveNote: (h) => `You’ll get the recap every day at ${String(h).padStart(2, "0")}:00.`,
+    duesMenu: "Due dates & debts", duesIntro: "Reminders for payments and installments. When you pay, tap “Paid”: the expense is recorded and the due date moves on.", duesEmpty: "No due dates. Write in the chat “remind me on November 23 to pay 200” or add one below.", duesCardTitle: "Upcoming due dates", duesSeeAll: "See all", duesPaidBtn: "Paid", duesReceivedBtn: "Received", duesToday: "today", duesTomorrow: "tomorrow", duesNamePh: "e.g. Car insurance", duesDateLabel: "Due on", duesRepeatNone: "One time", duesWeekly: "Every week", duesMonthly: "Every month", duesYearly: "Every year", duesCategoryAsk: "I’ll choose when I pay", duesInstTotalPh: "Total installments", duesInstPaidPh: "Already paid", duesInstHint: "Optional, for a debt paid in installments: how many installments in total and how many you’ve already paid.", duesAddBtn: "Add due date", duesSaveBtn: "Save changes", duesCancelBtn: "Cancel", duesFormError: "Check the name, amount, date and any installments.", duesPickCategory: "Which category should I record the payment in?", duesPayFailed: "I couldn’t record the payment: check the due date’s category.", dueHelp: "I didn’t catch the date or the amount. Try: “remind me on November 23 to pay 200 for car insurance”.", dueListHeader: "Upcoming due dates:", dueListEmpty: "You have no upcoming due dates.", duesInDays: (n) => `in ${n} days`, duesOverdue: (n) => `${n} ${n === 1 ? "day" : "days"} overdue`, duesRateInfo: (k, total, left, amt) => `installment ${k} of ${total} · ${left} left · ≈ ${amt}`, dueAdded: (label, when, amount, cur, isIncome, rep) => `Reminder created: ${when} · ${currency(amount, cur)} · ${label}${rep ? ` · ${rep}` : ""}. When you’ve ${isIncome ? "received it" : "paid"}, tap “${isIncome ? "Received" : "Paid"}” on the Dashboard. To change or remove it: Settings → Due dates & debts.`, duePaidMsg: (label, amount, cur, bal, nextWhen, cleared, isIncome) => `${isIncome ? "Received" : "Paid"}: ${label} · ${currency(amount, cur)}. Balance: ${currency(bal, cur)}.${cleared ? " That was the last installment: debt paid off." : nextWhen ? ` Next due date: ${nextWhen}.` : ""}`,
     needCategory: (label, amt, cur) => `I understood ${label === "Expense" ? "an expense" : "an income"} of ${currency(amt, cur)}, but not the category. Pick one below:`,
     balanceAnswer: (name, amt, cur) => `${name}'s balance is ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `You have ${currency(amt, cur)} in the ${cat} category.`,
@@ -526,6 +874,7 @@ const T = {
     txFailed: "Nu am putut înregistra, încearcă din nou.",
     txNotUnderstood: "Nu am înțeles. Încearcă cu o sumă și o categorie, de exemplu „am cheltuit 15 la mâncare” sau „am câștigat 200”.",
     pushLabel: "Primește-l și ca notificare pe telefon", pushDesc: "O notificare pe zi cu rezumatul de ieri, la ora aleasă mai sus. Necesită sincronizarea.", pushIntro: "Pentru a compune notificarea, serverul nostru citește portofelul tău sincronizat. Salvăm și adresa de notificare a acestui dispozitiv, limba, ora și fusul orar. O poți dezactiva oricând: înregistrarea este ștearsă. Detalii în Politica de confidențialitate.", pushActivate: "Activează", pushCancel: "Anulează", pushHideLabel: "Ascunde sumele în notificare", pushHideDesc: "Notificarea va spune doar că rezumatul este gata.", pushUnsupported: "Acest browser nu acceptă notificările push.", pushIosInstall: "Pe iPhone, notificările funcționează doar cu aplicația adăugată pe ecranul principal: atinge Partajează → „Adaugă pe ecranul principal”, apoi redeschide Finbar de acolo.", pushNeedSync: "Pentru a primi notificarea este necesară sincronizarea: rezumatul este compus de server pe baza portofelului tău.", pushGoSync: "Mergi la sincronizare", pushDenied: "Ai blocat notificările pentru acest site: reactivează-le din setările browserului sau ale telefonului, apoi revino aici.", pushBrave: "Folosești Brave: pentru a primi notificări, activează „Use Google services for push messaging” în brave://settings/privacy.", pushError: "Nu am reușit să activez notificările. Încearcă din nou mai târziu.", pushActiveNote: (h) => `Vei primi rezumatul în fiecare zi la ${String(h).padStart(2, "0")}:00.`,
+    duesMenu: "Scadențe și datorii", duesIntro: "Îți amintește plăți și rate. Când plătești, atinge „Plătit”: cheltuiala este înregistrată, iar scadența avansează.", duesEmpty: "Nicio scadență. Scrie în chat „amintește-mi că pe 23 noiembrie trebuie să plătesc 200” sau adaug-o mai jos.", duesCardTitle: "Următoarele scadențe", duesSeeAll: "Vezi toate", duesPaidBtn: "Plătit", duesReceivedBtn: "Încasat", duesToday: "astăzi", duesTomorrow: "mâine", duesNamePh: "ex. Asigurare auto", duesDateLabel: "Scadentă la", duesRepeatNone: "O singură dată", duesWeekly: "În fiecare săptămână", duesMonthly: "În fiecare lună", duesYearly: "În fiecare an", duesCategoryAsk: "Aleg când plătesc", duesInstTotalPh: "Rate în total", duesInstPaidPh: "Deja plătite", duesInstHint: "Opțional, pentru o datorie în rate: câte rate sunt în total și câte ai plătit deja.", duesAddBtn: "Adaugă scadență", duesSaveBtn: "Salvează modificările", duesCancelBtn: "Anulează", duesFormError: "Verifică numele, suma, data și eventualele rate.", duesPickCategory: "În ce categorie înregistrez plata?", duesPayFailed: "Nu am reușit să înregistrez plata: verifică categoria scadenței.", dueHelp: "Nu am înțeles data sau suma. Încearcă așa: „amintește-mi că pe 23 noiembrie trebuie să plătesc 200 pentru asigurare”.", dueListHeader: "Următoarele scadențe:", dueListEmpty: "Nu ai scadențe programate.", duesInDays: (n) => `peste ${n} zile`, duesOverdue: (n) => `scadentă de ${n} ${n === 1 ? "zi" : "zile"}`, duesRateInfo: (k, total, left, amt) => `rata ${k} din ${total} · rămase ${left} · ≈ ${amt}`, dueAdded: (label, when, amount, cur, isIncome, rep) => `Memento creat: ${when} · ${currency(amount, cur)} · ${label}${rep ? ` · ${rep}` : ""}. Când ${isIncome ? "ai încasat" : "ai plătit"}, atinge „${isIncome ? "Încasat" : "Plătit"}” în Dashboard. Pentru a-l modifica sau șterge: Setări → Scadențe și datorii.`, duePaidMsg: (label, amount, cur, bal, nextWhen, cleared, isIncome) => `${isIncome ? "Încasat" : "Plătit"}: ${label} · ${currency(amount, cur)}. Sold: ${currency(bal, cur)}.${cleared ? " A fost ultima rată: datorie achitată." : nextWhen ? ` Următoarea scadență: ${nextWhen}.` : ""}`,
     needCategory: (label, amt, cur) => `Am înțeles ${label === "Cheltuială" ? "o cheltuială" : "un venit"} de ${currency(amt, cur)}, dar nu categoria. Alege una mai jos:`,
     balanceAnswer: (name, amt, cur) => `Soldul contului ${name} este ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `Ai ${currency(amt, cur)} în categoria ${cat}.`,
@@ -554,6 +903,7 @@ const T = {
     txFailed: "Не удалось записать, попробуйте ещё раз.",
     txNotUnderstood: "Не понял. Попробуйте указать сумму и категорию, например «потратил 15 на продукты» или «заработал 200».",
     pushLabel: "Получать также уведомлением на телефон", pushDesc: "Одно уведомление в день со сводкой за вчера, в выбранное выше время. Требуется синхронизация.", pushIntro: "Чтобы составить уведомление, наш сервер читает ваш синхронизированный кошелёк. Мы также сохраняем адрес уведомлений этого устройства, язык, время и часовой пояс. Отключить можно в любой момент: подписка удаляется. Подробности — в Политике конфиденциальности.", pushActivate: "Включить", pushCancel: "Отмена", pushHideLabel: "Скрывать суммы в уведомлении", pushHideDesc: "В уведомлении будет только сообщение, что сводка готова.", pushUnsupported: "Этот браузер не поддерживает push-уведомления.", pushIosInstall: "На iPhone уведомления работают только если приложение добавлено на экран «Домой»: нажмите «Поделиться» → «На экран „Домой“», затем откройте Finbar оттуда.", pushNeedSync: "Для уведомления нужна синхронизация: сводку составляет сервер на основе вашего кошелька.", pushGoSync: "Перейти к синхронизации", pushDenied: "Вы заблокировали уведомления для этого сайта: включите их в настройках браузера или телефона и вернитесь сюда.", pushBrave: "Вы используете Brave: чтобы получать уведомления, включите «Use Google services for push messaging» в brave://settings/privacy.", pushError: "Не удалось включить уведомления. Попробуйте позже.", pushActiveNote: (h) => `Вы будете получать сводку каждый день в ${String(h).padStart(2, "0")}:00.`,
+    duesMenu: "Платежи и долги", duesIntro: "Напоминает о платежах и взносах. Когда заплатите, нажмите «Оплачено»: расход будет записан, а срок сдвинется.", duesEmpty: "Нет сроков. Напишите в чате «напомни 23 ноября оплатить 200» или добавьте ниже.", duesCardTitle: "Ближайшие платежи", duesSeeAll: "Все", duesPaidBtn: "Оплачено", duesReceivedBtn: "Получено", duesToday: "сегодня", duesTomorrow: "завтра", duesNamePh: "напр. Автострахование", duesDateLabel: "Срок", duesRepeatNone: "Один раз", duesWeekly: "Каждую неделю", duesMonthly: "Каждый месяц", duesYearly: "Каждый год", duesCategoryAsk: "Выберу при оплате", duesInstTotalPh: "Всего платежей", duesInstPaidPh: "Уже оплачено", duesInstHint: "Необязательно, для долга в рассрочку: сколько всего платежей и сколько уже оплачено.", duesAddBtn: "Добавить платёж", duesSaveBtn: "Сохранить", duesCancelBtn: "Отмена", duesFormError: "Проверьте название, сумму, дату и платежи.", duesPickCategory: "В какую категорию записать платёж?", duesPayFailed: "Не удалось записать платёж: проверьте категорию.", dueHelp: "Не удалось распознать дату или сумму. Попробуйте так: «напомни 23 ноября оплатить 200 за страховку».", dueListHeader: "Ближайшие платежи:", dueListEmpty: "Запланированных платежей нет.", duesInDays: (n) => `через ${n} дн.`, duesOverdue: (n) => `просрочено на ${n} дн.`, duesRateInfo: (k, total, left, amt) => `платёж ${k} из ${total} · осталось ${left} · ≈ ${amt}`, dueAdded: (label, when, amount, cur, isIncome, rep) => `Напоминание создано: ${when} · ${currency(amount, cur)} · ${label}${rep ? ` · ${rep}` : ""}. Когда ${isIncome ? "получите" : "оплатите"}, нажмите «${isIncome ? "Получено" : "Оплачено"}» на главном экране. Изменить или удалить: Настройки → Платежи и долги.`, duePaidMsg: (label, amount, cur, bal, nextWhen, cleared, isIncome) => `${isIncome ? "Получено" : "Оплачено"}: ${label} · ${currency(amount, cur)}. Баланс: ${currency(bal, cur)}.${cleared ? " Это был последний платёж: долг погашен." : nextWhen ? ` Следующий срок: ${nextWhen}.` : ""}`,
     needCategory: (label, amt, cur) => `Я понял ${label === "Расход" ? "расход" : "доход"} на ${currency(amt, cur)}, но не категорию. Выберите ниже:`,
     balanceAnswer: (name, amt, cur) => `Баланс «${name}»: ${currency(amt, cur)}.`,
     categoryBalanceAnswer: (amt, cat, cur) => `У вас ${currency(amt, cur)} в категории ${cat}.`,
@@ -582,6 +932,7 @@ const T = {
     txFailed: "记录失败，请重试。",
     txNotUnderstood: "我没听懂。请试着写上金额和分类，例如“花了15买食物”或“赚了200”。",
     pushLabel: "同时以手机通知的形式接收", pushDesc: "每天一条通知，在上面选择的时间发送昨日总结。需要同步。", pushIntro: "为了生成通知，我们的服务器会读取你已同步的钱包。我们还会保存此设备的通知地址、语言、时间和时区。你可以随时关闭：订阅信息会被删除。详情见隐私政策。", pushActivate: "开启", pushCancel: "取消", pushHideLabel: "在通知中隐藏金额", pushHideDesc: "通知只会提示总结已准备好。", pushUnsupported: "此浏览器不支持推送通知。", pushIosInstall: "在 iPhone 上，只有将应用添加到主屏幕后通知才可用：点按“分享”→“添加到主屏幕”，然后从主屏幕重新打开 Finbar。", pushNeedSync: "接收通知需要开启同步：总结由服务器根据你的钱包生成。", pushGoSync: "前往同步", pushDenied: "你已阻止此网站的通知：请在浏览器或手机设置中重新开启，然后回到这里。", pushBrave: "你正在使用 Brave：要接收通知，请在 brave://settings/privacy 中开启“Use Google services for push messaging”。", pushError: "无法开启通知，请稍后再试。", pushActiveNote: (h) => `你每天 ${String(h).padStart(2, "0")}:00 会收到总结。`,
+    duesMenu: "到期与债务", duesIntro: "提醒你付款和分期。付款后点按“已付”：支出会被记录，到期日顺延。", duesEmpty: "暂无到期事项。在聊天中输入“提醒我11月23日付200元”，或在下方添加。", duesCardTitle: "近期到期", duesSeeAll: "查看全部", duesPaidBtn: "已付", duesReceivedBtn: "已收", duesToday: "今天", duesTomorrow: "明天", duesNamePh: "例如 车险", duesDateLabel: "到期日", duesRepeatNone: "仅一次", duesWeekly: "每周", duesMonthly: "每月", duesYearly: "每年", duesCategoryAsk: "付款时选择", duesInstTotalPh: "总期数", duesInstPaidPh: "已付期数", duesInstHint: "可选，用于分期债务：一共几期，已经付了几期。", duesAddBtn: "添加到期事项", duesSaveBtn: "保存修改", duesCancelBtn: "取消", duesFormError: "请检查名称、金额、日期和分期设置。", duesPickCategory: "把这笔付款记入哪个分类？", duesPayFailed: "无法记录付款：请检查该事项的分类。", dueHelp: "没能识别日期或金额。可以这样写：“提醒我11月23日付200元保险费”。", dueListHeader: "近期到期：", dueListEmpty: "没有即将到期的事项。", duesInDays: (n) => `${n}天后`, duesOverdue: (n) => `已逾期${n}天`, duesRateInfo: (k, total, left, amt) => `第${k}期，共${total}期 · 剩余${left}期 · 约${amt}`, dueAdded: (label, when, amount, cur, isIncome, rep) => `提醒已创建：${when} · ${currency(amount, cur)} · ${label}${rep ? ` · ${rep}` : ""}。${isIncome ? "收到后" : "付款后"}，请在首页点按“${isIncome ? "已收" : "已付"}”。要修改或删除：设置 → 到期与债务。`, duePaidMsg: (label, amount, cur, bal, nextWhen, cleared, isIncome) => `${isIncome ? "已收" : "已付"}：${label} · ${currency(amount, cur)}。余额：${currency(bal, cur)}。${cleared ? "这是最后一期：债务已还清。" : nextWhen ? `下次到期：${nextWhen}。` : ""}`,
     needCategory: (label, amt, cur) => `我识别到一笔${label === "支出" ? "支出" : "收入"} ${currency(amt, cur)}，但不知道分类。请选择：`,
     balanceAnswer: (name, amt, cur) => `${name}的余额是 ${currency(amt, cur)}。`,
     categoryBalanceAnswer: (amt, cat, cur) => `你在"${cat}"分类中有 ${currency(amt, cur)}。`,
@@ -1209,9 +1560,12 @@ export default function Finbar() {
   const [pushError, setPushError] = useState(null); // null | "brave" | "generic"
   const [showPushIntro, setShowPushIntro] = useState(false);
   const [braveBrowser, setBraveBrowser] = useState(false);
+  const [editingDueId, setEditingDueId] = useState(null); // scadenza in modifica (Impostazioni → Scadenze)
+  const [payDueTarget, setPayDueTarget] = useState(null); // scadenza che aspetta la scelta della categoria
   const [selectedMsgIdx, setSelectedMsgIdx] = useState(null); // indice (in messages) del messaggio toccato
   const [chatArrows, setChatArrows] = useState({ show: false, atTop: true, atBottom: true }); // freccette di scorrimento
   const arrowHideTimer = useRef(null);
+  const chatScrollHandlerRef = useRef(null); // l'ultima versione di handleChatScroll, per l'ascolto dello scorrimento della pagina
   const arrowClickRef = useRef({ dir: null, timer: null });
   const ignoreScrollUntil = useRef(0); // scroll automatici (nuovo messaggio) non devono far apparire le freccette
 
@@ -1329,8 +1683,21 @@ export default function Finbar() {
     if (scrollRef.current) {
       ignoreScrollUntil.current = Date.now() + 200;
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      // se il contenitore non scorre da solo (scorre la pagina intera), porto in fondo la pagina: messaggi più recenti e campo di testo
+      if (tab === "chat" && scrollRef.current.scrollHeight <= scrollRef.current.clientHeight + 2) {
+        ignoreScrollUntil.current = Date.now() + 900; // lo scorrimento della pagina arriva in ritardo e non deve far comparire le freccette
+        window.scrollTo(0, document.documentElement.scrollHeight);
+      }
     }
   }, [messages, tab, pendingReceipt]);
+
+  // Quando scorre la pagina intera (e non il contenitore dei messaggi) le freccette devono comparire lo stesso.
+  useEffect(() => {
+    if (tab !== "chat") return;
+    const h = () => { if (chatScrollHandlerRef.current) chatScrollHandlerRef.current(); };
+    window.addEventListener("scroll", h, { passive: true });
+    return () => window.removeEventListener("scroll", h);
+  }, [tab]);
 
   useEffect(() => {
     setShowArchived(false);
@@ -1788,6 +2155,31 @@ export default function Finbar() {
     setShowTransfer(false);
   };
 
+  // ---- Scadenze e debiti: azioni ----
+  const saveDue = (fields, id) => {
+    const d = makeDue({ ...fields, id: id || undefined });
+    if (!d) return false;
+    const acc = { ...account, dues: [...(account.dues || []).filter((x) => x.id !== d.id), d] };
+    persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
+    setEditingDueId(null);
+    return true;
+  };
+  const deleteDue = (id) => {
+    const acc = { ...account, dues: (account.dues || []).filter((x) => x.id !== id) };
+    persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
+    if (editingDueId === id) setEditingDueId(null);
+  };
+  // "Pagato": registra la spesa (o l'incasso) e fa avanzare o chiude la scadenza. Senza categoria chiede quale usare.
+  const payDueNow = async (dueId, categoryOverride) => {
+    const res = payDue(account, dueId, categoryOverride);
+    if (res.needCategory) { setPayDueTarget(dueId); return; }
+    setPayDueTarget(null);
+    if (!res.ok) { setError(trUI.duesPayFailed); return; }
+    persistAccounts({ ...accounts, [res.acc.id]: res.acc }, activeId);
+    const nextWhen = res.nextDate ? formatDueDate(res.nextDate, appLanguage) : null;
+    await persistChat([...messages, { role: "assistant", content: trUI.duePaidMsg(res.due.label, res.due.amount, account.currency, res.acc.totalBalance, nextWhen, res.cleared, res.due.type === "entrata"), ts: Date.now(), accountId: activeId, txOk: true }]);
+  };
+
   // ---- Notifiche push: attivazione / disattivazione ----
   const enablePush = async () => {
     setPushError(null);
@@ -2064,6 +2456,30 @@ export default function Finbar() {
       return;
     }
 
+    // ---- 1d) scadenze: "quali scadenze ho?" e "ricordami che il 23 novembre devo pagare 200" ----
+    if (matchDueListCommand(text)) {
+      const todayL = localTodayISO();
+      const items = upcomingDues(account, todayL, 60).slice(0, 8);
+      const lines = items.map((d) => `• ${formatDueDate(d.date, appLanguage)} — ${d.label} · ${currency(d.amount, account.currency)} (${dueWhenText(daysBetweenISO(todayL, d.date), tr)})`);
+      const content = items.length === 0 ? tr.dueListEmpty : [tr.dueListHeader, ...lines].join("\n");
+      await persistChat([...next, { role: "assistant", content, ts: Date.now(), accountId: activeId }]);
+      return;
+    }
+    const dueCmd = parseDueCommand(text, localTodayISO(), appLanguage, account);
+    if (dueCmd) {
+      const nd = dueCmd.ok ? makeDue(dueCmd.due) : null;
+      if (!nd) {
+        await persistChat([...next, { role: "assistant", content: tr.dueHelp, ts: Date.now(), accountId: activeId }]);
+        return;
+      }
+      const accWithDue = { ...account, dues: [...(account.dues || []), nd] };
+      persistAccounts({ ...accounts, [accWithDue.id]: accWithDue }, activeId);
+      const repLabel = nd.repeat === "weekly" ? tr.duesWeekly : nd.repeat === "monthly" ? tr.duesMonthly : nd.repeat === "yearly" ? tr.duesYearly : "";
+      const whenText = formatDueDate(nd.date, appLanguage, { weekday: true, year: dueCmd.rolled });
+      await persistChat([...next, { role: "assistant", content: tr.dueAdded(nd.label, whenText, nd.amount, account.currency, nd.type === "entrata", repLabel), ts: Date.now(), accountId: activeId, txOk: true }]);
+      return;
+    }
+
     // ---- 2) prova a dividere il messaggio in più comandi (es. "aggiungi €7 in trasporti e togli €2 da svago") ----
     const compoundSegments = splitCompoundSegments(text);
     if (compoundSegments) {
@@ -2205,6 +2621,9 @@ export default function Finbar() {
   const archivedCount = chatForAccount.filter((m) => m.archived).length;
   const visibleChat = showArchived ? chatForAccount : chatForAccount.filter((m) => !m.archived);
 
+  const todayLocal = localTodayISO(); // giorno di calendario locale, per le scadenze
+  const dueList = account ? upcomingDues(account, todayLocal, 14) : [];
+
   // Archivia (nasconde, ma non cancella) tutti i messaggi del conto attivo fino a quello scelto incluso.
   const archiveUpTo = (msgIdx) => {
     persistChat(messages.map((m, i) => (i <= msgIdx && m.accountId === activeId && !m.archived ? { ...m, archived: true } : m)));
@@ -2224,20 +2643,25 @@ export default function Finbar() {
     clearTimeout(arrowHideTimer.current);
     arrowHideTimer.current = setTimeout(() => setChatArrows((a) => ({ ...a, show: false })), 1600);
   };
+  // Elemento che scorre davvero la chat: il contenitore dei messaggi, se ha abbastanza contenuto da scorrere;
+  // altrimenti (layout con altezza libera, come su certi telefoni e browser) scorre la pagina intera.
+  const getChatScroller = () => {
+    const el = scrollRef.current;
+    if (el && el.scrollHeight > el.clientHeight + 2) return el;
+    return document.scrollingElement || document.documentElement;
+  };
   const handleChatScroll = () => {
     if (Date.now() < ignoreScrollUntil.current) return;
-    const el = scrollRef.current;
-    if (!el) return;
-    setChatArrows({
-      show: true,
-      atTop: el.scrollTop < 8,
-      atBottom: el.scrollHeight - el.scrollTop - el.clientHeight < 8,
-    });
+    if (tab !== "chat") return;
+    const el = getChatScroller();
+    const next = { show: true, atTop: el.scrollTop < 8, atBottom: el.scrollHeight - el.scrollTop - el.clientHeight < 8 };
+    setChatArrows((a) => (a.show === next.show && a.atTop === next.atTop && a.atBottom === next.atBottom ? a : next));
     keepArrowsVisible();
   };
+  chatScrollHandlerRef.current = handleChatScroll;
   // un tocco: scorre di circa una schermata; due tocchi ravvicinati: inizio / fine della chat.
   const chatArrowClick = (dir) => {
-    const el = scrollRef.current;
+    const el = getChatScroller();
     if (!el) return;
     setChatArrows((a) => ({ ...a, show: true }));
     keepArrowsVisible();
@@ -2441,6 +2865,33 @@ export default function Finbar() {
                   </button>
                 </div>
               )}
+              {account && dueList.length > 0 && (
+                <div style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 14, padding: "10px 12px 6px", marginTop: 14, marginBottom: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: fs(12), color: t.textMuted, display: "flex", alignItems: "center", gap: 6 }}><Calendar size={13} /> {trUI.duesCardTitle}</span>
+                    <button onClick={() => { setSettingsSection("dues"); setShowSettings(true); }} style={{ background: "none", border: "none", color: t.accent, cursor: "pointer", fontSize: fs(11.5), fontWeight: 600, padding: 0 }}>{trUI.duesSeeAll}</button>
+                  </div>
+                  {dueList.slice(0, 3).map((d) => {
+                    const days = daysBetweenISO(todayLocal, d.date);
+                    const rate = dueRate(d);
+                    return (
+                      <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: `1px solid ${t.surfaceBorder}` }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: fs(13), fontWeight: 600, color: t.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.label}</div>
+                          <div style={{ fontSize: fs(11), color: days < 0 ? "#FF7A6B" : t.textMuted }}>
+                            {dueWhenText(days, trUI)}{rate ? ` · ${trUI.duesRateInfo(rate.k, rate.total, rate.left, currency(rate.leftAmount, account.currency))}` : ""}
+                          </div>
+                        </div>
+                        <span className="num" style={{ fontSize: fs(13), fontWeight: 700, color: d.type === "entrata" ? "#2ECC71" : "#FF7A6B" }}>{d.type === "entrata" ? "+" : "−"}{currency(d.amount, account.currency)}</span>
+                        <button onClick={() => payDueNow(d.id)} style={{ background: t.accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "6px 10px", fontWeight: 700, fontSize: fs(11.5), cursor: "pointer", flexShrink: 0 }}>
+                          {d.type === "entrata" ? trUI.duesReceivedBtn : trUI.duesPaidBtn}
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {dueList.length > 3 && <div style={{ fontSize: fs(11), color: t.textMuted, padding: "4px 0 6px" }}>+{dueList.length - 3}</div>}
+                </div>
+              )}
               <div ref={tourBalanceRef} style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 18, padding: "22px 20px", marginBottom: 16, position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: `${t.accent}22`, filter: "blur(10px)" }} />
                 <div style={{ fontSize: fs(12), color: t.textMuted, marginBottom: 6, position: "relative" }}>{ui.totalBalance} · {account.name}</div>
@@ -2561,6 +3012,7 @@ export default function Finbar() {
                   <div key={i} className="in" style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", gap: 5, opacity: m.archived ? 0.6 : 1 }}>
                     <div onClick={() => setSelectedMsgIdx(selected ? null : msgIdx)} style={{
                       outline: selected ? `1.5px dashed ${t.accent}` : "none", outlineOffset: 2,
+                      whiteSpace: "pre-line",
                       maxWidth: "82%", padding: "9px 13px", borderRadius: 15,
                       borderBottomRightRadius: m.role === "user" ? 4 : 15,
                       borderBottomLeftRadius: m.role === "user" ? 15 : 4,
@@ -2627,7 +3079,7 @@ export default function Finbar() {
               </div>
 
               {/* freccette di scorrimento: appaiono solo mentre scorri */}
-              <div style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 6, opacity: chatArrows.show ? 1 : 0, pointerEvents: chatArrows.show ? "auto" : "none", transition: "opacity .25s" }}>
+              <div style={{ position: "fixed", zIndex: 30, right: 6, top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 6, opacity: chatArrows.show ? 1 : 0, pointerEvents: chatArrows.show ? "auto" : "none", transition: "opacity .25s" }}>
                 {[
                   { dir: "up", Icon: ChevronUp, hidden: chatArrows.atTop, label: trUI.scrollUpAria },
                   { dir: "down", Icon: ChevronDown, hidden: chatArrows.atBottom, label: trUI.scrollDownAria },
@@ -2965,6 +3417,7 @@ export default function Finbar() {
             settingsSection === "trend" ? ui.monthlyTrend :
             settingsSection === "categories" ? ui.categoriesTitle :
             settingsSection === "recurring" ? ui.recurringMenuShort :
+            settingsSection === "dues" ? trUI.duesMenu :
             settingsSection === "legal" ? ui.legalMenuLabel :
             ui.settingsTitle
           }
@@ -2984,6 +3437,7 @@ export default function Finbar() {
                 ...(account && monthlyData.length > 0 ? [{ key: "trend", label: ui.monthlyTrend, icon: TrendingUp }] : []),
                 ...(account ? [{ key: "categories", label: ui.categoriesTitle, icon: Tag }] : []),
                 ...(account ? [{ key: "recurring", label: ui.recurringMenuShort, icon: Repeat }] : []),
+                ...(account ? [{ key: "dues", label: trUI.duesMenu, icon: Calendar }] : []),
                 { key: "legal", label: ui.legalMenuLabel, icon: Shield },
               ].map((item) => (
                 <button
@@ -3354,6 +3808,44 @@ export default function Finbar() {
             </>
           )}
 
+          {settingsSection === "dues" && account && (() => {
+            const list = [...(account.dues || [])].sort((a, b) => a.date.localeCompare(b.date));
+            const editing = editingDueId ? list.find((d) => d.id === editingDueId) : null;
+            return (
+              <>
+                <div style={{ fontSize: fs(11.5), color: t.textMuted, marginBottom: 12, lineHeight: 1.5 }}>{trUI.duesIntro}</div>
+                {list.length === 0 && <div style={{ fontSize: fs(12), color: t.textMuted, marginBottom: 10, lineHeight: 1.5 }}>{trUI.duesEmpty}</div>}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+                  {list.map((d) => {
+                    const days = daysBetweenISO(todayLocal, d.date);
+                    const rate = dueRate(d);
+                    const isSpesa = d.type !== "entrata";
+                    const repLabel = d.repeat === "weekly" ? trUI.duesWeekly : d.repeat === "monthly" ? trUI.duesMonthly : d.repeat === "yearly" ? trUI.duesYearly : "";
+                    const catLabel = d.category === "TUTTE" ? ui.allCategoriesSplit : d.category && account.categories[d.category] ? account.categories[d.category].label : "";
+                    return (
+                      <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, background: t.surfaceRow, border: `1px solid ${editingDueId === d.id ? t.accent : t.modalBorder}`, borderRadius: 10, padding: "10px 12px" }}>
+                        {isSpesa ? <TrendingDown size={15} color="#FF7A6B" style={{ flexShrink: 0 }} /> : <TrendingUp size={15} color="#2ECC71" style={{ flexShrink: 0 }} />}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: fs(13), fontWeight: 600 }}>{d.label}</div>
+                          <div style={{ fontSize: fs(11), color: days < 0 ? "#FF7A6B" : t.textMuted, lineHeight: 1.45 }}>
+                            {formatDueDate(d.date, appLanguage, { year: true })} · {dueWhenText(days, trUI)}
+                            {repLabel && !rate ? ` · ${repLabel}` : ""}
+                            {catLabel ? ` · ${catLabel}` : ""}
+                            {rate ? ` · ${trUI.duesRateInfo(rate.k, rate.total, rate.left, currency(rate.leftAmount, account.currency))}` : ""}
+                          </div>
+                        </div>
+                        <span className="num" style={{ fontSize: fs(13), fontWeight: 700, color: isSpesa ? "#FF7A6B" : "#2ECC71" }}>{isSpesa ? "−" : "+"}{currency(d.amount, account.currency)}</span>
+                        <button onClick={() => setEditingDueId(d.id)} className="icon-btn" aria-label="Edit due date" style={{ color: t.textMuted }}><Pencil size={13} /></button>
+                        <button onClick={() => deleteDue(d.id)} className="icon-btn" aria-label="Delete due date" style={{ color: t.textMuted }}><Trash2 size={13} /></button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <DueForm key={editing ? editing.id : "new"} accent={t.accent} t={t} categories={account.categories} initial={editing} onSave={saveDue} onCancel={() => setEditingDueId(null)} tr={trUI} ui={ui} fs={fs} />
+              </>
+            );
+          })()}
+
           {settingsSection === "legal" && (() => {
             const legal = LEGAL_TEXT[appLanguage] || LEGAL_TEXT.it;
             const sections = settingsLegalTab === "privacy" ? legal.privacy : legal.terms;
@@ -3384,6 +3876,23 @@ export default function Finbar() {
           })()}
         </Modal>
       )}
+
+      {payDueTarget && account && (() => {
+        const d = (account.dues || []).find((x) => x.id === payDueTarget);
+        if (!d) return null;
+        const btn = { padding: "11px 12px", borderRadius: 10, border: `1px solid ${t.surfaceBorder}`, background: t.surfaceRow, color: t.textStrong, cursor: "pointer", fontSize: fs(13), fontWeight: 600, textAlign: "left" };
+        return (
+          <Modal onClose={() => setPayDueTarget(null)} title={trUI.duesPickCategory} t={t} fs={fs}>
+            <div style={{ fontSize: fs(12.5), color: t.textMuted, marginBottom: 12 }}>{d.label} · {currency(d.amount, account.currency)}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {Object.entries(account.categories).map(([id, c]) => (
+                <button key={id} onClick={() => payDueNow(d.id, id)} style={btn}>{c.label}</button>
+              ))}
+              <button onClick={() => payDueNow(d.id, "TUTTE")} style={btn}>{ui.allCategoriesSplit}</button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {showUndoConfirm && account && undoCheck(accounts, activeId) === "ok" && (() => {
         const last = account.transactions[0];
@@ -3633,6 +4142,77 @@ function RecurringForm({ accent, t, categories, onAdd, ui, fs = (px) => px }) {
       <button onClick={submit} style={{ width: "100%", background: accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 700, fontSize: fs(12.5), cursor: "pointer" }}>
         {ui.addRecurringBtn}
       </button>
+    </div>
+  );
+}
+
+function DueForm({ accent, t, categories, onSave, onCancel, initial, tr, ui, fs = (px) => px }) {
+  const [type, setType] = useState(initial ? initial.type : "spesa");
+  const [label, setLabel] = useState(initial ? initial.label : "");
+  const [amount, setAmount] = useState(initial ? String(initial.amount).replace(".", ",") : "");
+  const [category, setCategory] = useState(initial ? initial.category : "");
+  const [date, setDate] = useState(initial ? initial.date : localTodayISO());
+  const [repeat, setRepeat] = useState(initial ? initial.repeat : "none");
+  const [instTotal, setInstTotal] = useState(initial && initial.installments ? String(initial.installments.total) : "");
+  const [instPaid, setInstPaid] = useState(initial && initial.installments ? String(initial.installments.paid) : "");
+  const [err, setErr] = useState(false);
+
+  const submit = () => {
+    const amt = parseFloat(String(amount).replace(",", "."));
+    const total = instTotal ? parseInt(instTotal, 10) : 0;
+    const paid = instPaid ? parseInt(instPaid, 10) : 0;
+    const p = /^\d{4}-\d{2}-\d{2}$/.test(date || "") ? isoParts(date) : null;
+    const okInst = !instTotal || (total >= 1 && paid >= 0 && paid < total);
+    if (!label.trim() || !(amt > 0) || !p || !isValidYMD(p.y, p.m, p.d) || !okInst) { setErr(true); return; }
+    setErr(false);
+    const saved = onSave({ type, label: label.trim(), amount: amt, category, date, repeat, installments: total ? { total, paid } : null }, initial ? initial.id : null);
+    if (saved && !initial) { setLabel(""); setAmount(""); setInstTotal(""); setInstPaid(""); setRepeat("none"); }
+  };
+  const small = { fontSize: fs(12.5), padding: "9px 10px" };
+
+  return (
+    <div style={{ background: t.surfaceRow, border: `1.5px dashed ${t.surfaceAltBorder}`, borderRadius: 10, padding: 12, marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        {["spesa", "entrata"].map((tt) => (
+          <button key={tt} onClick={() => setType(tt)} style={{ flex: 1, padding: "8px 0", borderRadius: 7, border: `1.5px solid ${type === tt ? accent : t.surfaceBorder}`, background: type === tt ? `${accent}22` : "transparent", color: type === tt ? accent : t.textMuted, fontWeight: 600, fontSize: fs(12), cursor: "pointer" }}>
+            {tt === "spesa" ? ui.expenseType : ui.incomeType}
+          </button>
+        ))}
+      </div>
+      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={tr.duesNamePh} style={{ ...inputStyle(t, fs), marginBottom: 8, ...small }} />
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={ui.amountPh} style={{ ...inputStyle(t, fs), marginBottom: 0, ...small, fontFamily: "'JetBrains Mono', monospace" }} />
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label={tr.duesDateLabel} style={{ ...inputStyle(t, fs), marginBottom: 0, ...small, width: 150 }} />
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...selectStyle(t, fs), marginBottom: 0, ...small }}>
+          <option value="">{tr.duesCategoryAsk}</option>
+          <option value="TUTTE">{ui.allCategoriesSplit}</option>
+          {Object.entries(categories).map(([id, c]) => <option key={id} value={id}>{c.label}</option>)}
+        </select>
+        <select value={repeat} onChange={(e) => setRepeat(e.target.value)} style={{ ...selectStyle(t, fs), marginBottom: 0, ...small, width: 140 }}>
+          <option value="none">{tr.duesRepeatNone}</option>
+          <option value="weekly">{tr.duesWeekly}</option>
+          <option value="monthly">{tr.duesMonthly}</option>
+          <option value="yearly">{tr.duesYearly}</option>
+        </select>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+        <input inputMode="numeric" value={instTotal} onChange={(e) => setInstTotal(e.target.value.replace(/\D/g, ""))} placeholder={tr.duesInstTotalPh} style={{ ...inputStyle(t, fs), marginBottom: 0, ...small }} />
+        <input inputMode="numeric" value={instPaid} onChange={(e) => setInstPaid(e.target.value.replace(/\D/g, ""))} placeholder={tr.duesInstPaidPh} style={{ ...inputStyle(t, fs), marginBottom: 0, ...small }} />
+      </div>
+      <div style={{ fontSize: fs(11), color: t.textMuted, lineHeight: 1.45, marginBottom: 10 }}>{tr.duesInstHint}</div>
+      {err && <div style={{ fontSize: fs(11.5), color: "#FF7A6B", marginBottom: 8 }}>{tr.duesFormError}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        {initial && (
+          <button onClick={onCancel} style={{ flex: 1, background: "transparent", color: t.textMuted, border: `1px solid ${t.surfaceBorder}`, borderRadius: 8, padding: "9px 0", fontWeight: 600, fontSize: fs(12.5), cursor: "pointer" }}>
+            {tr.duesCancelBtn}
+          </button>
+        )}
+        <button onClick={submit} style={{ flex: 2, background: accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 700, fontSize: fs(12.5), cursor: "pointer" }}>
+          {initial ? tr.duesSaveBtn : tr.duesAddBtn}
+        </button>
+      </div>
     </div>
   );
 }
