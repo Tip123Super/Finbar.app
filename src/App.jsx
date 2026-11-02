@@ -34,6 +34,9 @@ const DAILY_RECAP_SEEN_KEY = "finex:daily-recap-seen";
 const NOTIF_RECAP_ENABLED_KEY = "finex:notif-recap-enabled";
 const NOTIF_RECAP_HOUR_KEY = "finex:notif-recap-hour";
 const PUSH_HIDE_AMOUNTS_KEY = "finex:push-hide-amounts";
+// Versione dell'app, mostrata in fondo al menu delle Impostazioni: serve a capire quale build gira sul telefono
+// (l'app installata può tenere in cache una versione vecchia). Da aggiornare a ogni rilascio.
+const APP_VERSION = "2026.10.26-d";
 // Chiave pubblica VAPID per le notifiche push (non è segreta; la privata sta solo nei segreti di Supabase).
 const VAPID_PUBLIC_KEY = "BKHQiTELxMKhcohPqrGfjcEOPtsbPu1Dp9-bkzEkNdJtoDl2MYebXYQZ9MEHvLK456oprllimPVV9jWIi5YMbCc";
 const NOTIF_TIP_ENABLED_KEY = "finex:notif-tip-enabled";
@@ -1560,12 +1563,17 @@ export default function Finbar() {
   const [pushError, setPushError] = useState(null); // null | "brave" | "generic"
   const [showPushIntro, setShowPushIntro] = useState(false);
   const [braveBrowser, setBraveBrowser] = useState(false);
+  const [showDiag, setShowDiag] = useState(false); // diagnostica delle freccette (tocca la versione in Impostazioni)
   const [editingDueId, setEditingDueId] = useState(null); // scadenza in modifica (Impostazioni → Scadenze)
   const [payDueTarget, setPayDueTarget] = useState(null); // scadenza che aspetta la scelta della categoria
   const [selectedMsgIdx, setSelectedMsgIdx] = useState(null); // indice (in messages) del messaggio toccato
   const [chatArrows, setChatArrows] = useState({ show: false, atTop: true, atBottom: true }); // freccette di scorrimento
   const arrowHideTimer = useRef(null);
-  const chatScrollHandlerRef = useRef(null); // l'ultima versione di handleChatScroll, per l'ascolto dello scorrimento della pagina
+  const chatScrollHandlerRef = useRef(null); // l'ultima versione di handleChatScroll, per gli ascolti globali
+  const chatFindScrollerRef = useRef(null); // l'ultima versione di findChatScroller, per il controllo periodico
+  const chatScrollElRef = useRef(null); // l'ultimo elemento visto scorrere nella chat
+  const chatWrapRef = useRef(null); // contenitore della chat (messaggi + freccette)
+  const arrowDiag = useRef({ scroll: 0, touch: 0, wheel: 0, poll: 0, ignored: 0, shown: 0, lastScroller: "-", lastPos: 0, lastMax: 0 }); // contatori per la diagnostica
   const arrowClickRef = useRef({ dir: null, timer: null });
   const ignoreScrollUntil = useRef(0); // scroll automatici (nuovo messaggio) non devono far apparire le freccette
 
@@ -1691,12 +1699,40 @@ export default function Finbar() {
     }
   }, [messages, tab, pendingReceipt]);
 
-  // Quando scorre la pagina intera (e non il contenitore dei messaggi) le freccette devono comparire lo stesso.
+  // Le freccette non devono dipendere da un solo segnale: ascolto in fase di cattura gli scorrimenti di QUALSIASI
+  // elemento legato alla chat (o della pagina), più tocco e rotella, più un controllo periodico della posizione.
   useEffect(() => {
     if (tab !== "chat") return;
-    const h = () => { if (chatScrollHandlerRef.current) chatScrollHandlerRef.current(); };
-    window.addEventListener("scroll", h, { passive: true });
-    return () => window.removeEventListener("scroll", h);
+    const call = (src) => { if (chatScrollHandlerRef.current) chatScrollHandlerRef.current(src); };
+    const onScrollAny = (e) => {
+      const tgt = e.target;
+      const page = document.scrollingElement || document.documentElement;
+      const el = tgt === document || tgt === document.documentElement || tgt === document.body ? page : tgt;
+      const wrap = chatWrapRef.current;
+      const related = el === page || (el && el.nodeType === 1 && wrap && (wrap.contains(el) || el.contains(wrap)));
+      if (!related) return;
+      if (el.scrollHeight > el.clientHeight + 2) chatScrollElRef.current = el;
+      call("scroll");
+    };
+    const onTouch = () => call("touch");
+    const onWheel = () => call("wheel");
+    window.addEventListener("scroll", onScrollAny, true);
+    window.addEventListener("touchmove", onTouch, { passive: true });
+    window.addEventListener("wheel", onWheel, { passive: true });
+    let last = null;
+    const timer = setInterval(() => {
+      const find = chatFindScrollerRef.current;
+      if (!find) return;
+      const pos = find().scrollTop;
+      if (last !== null && Math.abs(pos - last) > 1) call("poll");
+      last = pos;
+    }, 150);
+    return () => {
+      window.removeEventListener("scroll", onScrollAny, true);
+      window.removeEventListener("touchmove", onTouch);
+      window.removeEventListener("wheel", onWheel);
+      clearInterval(timer);
+    };
   }, [tab]);
 
   useEffect(() => {
@@ -2643,25 +2679,42 @@ export default function Finbar() {
     clearTimeout(arrowHideTimer.current);
     arrowHideTimer.current = setTimeout(() => setChatArrows((a) => ({ ...a, show: false })), 1600);
   };
-  // Elemento che scorre davvero la chat: il contenitore dei messaggi, se ha abbastanza contenuto da scorrere;
-  // altrimenti (layout con altezza libera, come su certi telefoni e browser) scorre la pagina intera.
-  const getChatScroller = () => {
-    const el = scrollRef.current;
-    if (el && el.scrollHeight > el.clientHeight + 2) return el;
-    return document.scrollingElement || document.documentElement;
+  // Elemento che scorre davvero la chat. In ordine: l'ultimo elemento visto scorrere, il contenitore dei messaggi,
+  // un suo antenato che scorre, altrimenti la pagina intera (dipende dall'altezza del layout sul dispositivo).
+  const pageScroller = () => document.scrollingElement || document.documentElement;
+  const findChatScroller = () => {
+    const remembered = chatScrollElRef.current;
+    if (remembered && remembered.isConnected && remembered.scrollHeight > remembered.clientHeight + 2) return remembered;
+    let el = scrollRef.current;
+    while (el && el !== document.body && el !== document.documentElement) {
+      if (el.scrollHeight > el.clientHeight + 2) {
+        const oy = window.getComputedStyle(el).overflowY;
+        if (oy === "auto" || oy === "scroll" || oy === "overlay") return el;
+      }
+      el = el.parentElement;
+    }
+    return pageScroller();
   };
-  const handleChatScroll = () => {
-    if (Date.now() < ignoreScrollUntil.current) return;
+  chatFindScrollerRef.current = findChatScroller;
+  // Mostra le freccette. "source" dice chi ha chiamato: scorrimento, tocco, rotella o controllo periodico.
+  const handleChatScroll = (source = "scroll") => {
+    const d = arrowDiag.current;
+    d[source] = (d[source] || 0) + 1;
+    if (Date.now() < ignoreScrollUntil.current) { d.ignored += 1; return; }
     if (tab !== "chat") return;
-    const el = getChatScroller();
+    const el = findChatScroller();
+    d.lastScroller = el === pageScroller() ? "pagina" : el === scrollRef.current ? "messaggi" : "altro";
+    d.lastPos = Math.round(el.scrollTop);
+    d.lastMax = Math.round(el.scrollHeight - el.clientHeight);
     const next = { show: true, atTop: el.scrollTop < 8, atBottom: el.scrollHeight - el.scrollTop - el.clientHeight < 8 };
     setChatArrows((a) => (a.show === next.show && a.atTop === next.atTop && a.atBottom === next.atBottom ? a : next));
     keepArrowsVisible();
+    d.shown += 1;
   };
   chatScrollHandlerRef.current = handleChatScroll;
   // un tocco: scorre di circa una schermata; due tocchi ravvicinati: inizio / fine della chat.
   const chatArrowClick = (dir) => {
-    const el = getChatScroller();
+    const el = findChatScroller();
     if (!el) return;
     setChatArrows((a) => ({ ...a, show: true }));
     keepArrowsVisible();
@@ -2985,8 +3038,8 @@ export default function Finbar() {
           {/* ===== Chat tab ===== */}
           {tab === "chat" && (
             <>
-              <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-              <div ref={scrollRef} onScroll={handleChatScroll} className="scrollbar" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div ref={chatWrapRef} style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+              <div ref={scrollRef} onScroll={() => handleChatScroll("scroll")} onTouchMove={() => handleChatScroll("touch")} onWheel={() => handleChatScroll("wheel")} className="scrollbar" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
                 {archivedCount > 0 && (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: t.surfaceRow, border: `1px solid ${t.surfaceBorder}`, borderRadius: 12, padding: "8px 12px", fontSize: fs(12), color: t.textMuted }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Archive size={13} /> {trUI.archivedBanner(archivedCount)}</span>
@@ -3456,6 +3509,17 @@ export default function Finbar() {
                   <span style={{ flex: 1, textAlign: "left", fontSize: fs(13.5), fontWeight: 600 }}>{ui.deleteAccount}</span>
                 </button>
               )}
+              <div onClick={() => setShowDiag(!showDiag)} style={{ fontSize: fs(10.5), color: t.textMuted, textAlign: "center", marginTop: 6, opacity: 0.75, cursor: "pointer" }}>Finbar · v{APP_VERSION}</div>
+              {showDiag && (() => {
+                const d = arrowDiag.current;
+                return (
+                  <div style={{ fontSize: fs(10.5), color: t.textMuted, textAlign: "center", lineHeight: 1.6, fontFamily: "monospace", background: t.surfaceRow, border: `1px solid ${t.surfaceBorder}`, borderRadius: 10, padding: "8px 10px" }}>
+                    scroll {d.scroll} · tocco {d.touch} · rotella {d.wheel} · controllo {d.poll}<br />
+                    ignorati {d.ignored} · mostrate {d.shown}<br />
+                    scorre: {d.lastScroller} {d.lastPos}/{d.lastMax}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
