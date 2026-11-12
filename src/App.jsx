@@ -7,6 +7,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis
 import { scanReceiptWithTesseract } from "./receiptOcr";
 import { LEGAL_TEXT } from "./legalText";
 import { getDailyTip } from "./dailyTips";
+import { MODEL_PARAM, encodeModel, decodeModel, itemsFromAccount, planApply, applyPlan } from "./categoryModel";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -37,7 +38,7 @@ const PUSH_HIDE_AMOUNTS_KEY = "finex:push-hide-amounts";
 const PUSH_DUES_KEY = "finex:push-dues";
 // Versione dell'app, mostrata in fondo al menu delle Impostazioni: serve a capire quale build gira sul telefono
 // (l'app installata può tenere in cache una versione vecchia). Da aggiornare a ogni rilascio.
-const APP_VERSION = "2026.11.11-a";
+const APP_VERSION = "2026.11.12-a";
 // Chiave pubblica VAPID per le notifiche push (non è segreta; la privata sta solo nei segreti di Supabase).
 const VAPID_PUBLIC_KEY = "BKHQiTELxMKhcohPqrGfjcEOPtsbPu1Dp9-bkzEkNdJtoDl2MYebXYQZ9MEHvLK456oprllimPVV9jWIi5YMbCc";
 const NOTIF_TIP_ENABLED_KEY = "finex:notif-tip-enabled";
@@ -309,6 +310,7 @@ function undoCheck(accounts, accountId) {
   if (last.transferId) {
     const holder = Object.entries(accounts).find(([id, a]) => id !== accountId && a.transactions.some((tx) => tx.transferId === last.transferId));
     if (holder && holder[1].transactions[0].transferId !== last.transferId) return "pairBlocked";
+    if (holder && !holder[1].transactions[0].breakdown) return "noDetails";
   }
   return "ok";
 }
@@ -987,6 +989,7 @@ const UI = {
     deleteConfirmTitle: "Eliminare questo conto?",     deleteConfirmWarning: "ATTENZIONE: eliminando questo conto verranno cancellati anche i dati salvati sul cloud collegati al tuo codice di sincronizzazione. Se è l'unico conto, il codice smetterà di funzionare per recuperare dati su altri dispositivi. L'operazione non si può annullare.",    deleteConfirmCancel: "Annulla", deleteConfirmBtn: "Elimina definitivamente",
     updateAvailable: "Nuova versione disponibile", updateBtn: "Aggiorna ora",
     saveCategoriesBtn: "Salva categorie", catErrorPrefix: "Impossibile completare l'operazione: le percentuali sommano al", catErrorSuffix: "%. Devono sommare esattamente al 100%.",
+    cmTitle: "Copia e condividi le categorie", cmDesc: "Riusa le stesse categorie e percentuali in un altro conto o con un'altra persona. Si copiano solo nomi, percentuali e colori: mai saldi né transazioni.", cmCopyBtn: "Copia da un altro conto", cmShareBtn: "Condividi un modello", cmImportBtn: "Importa un modello", cmCopyTitle: "Copia da un altro conto", cmCopyPick: "Scegli il conto da cui copiare le categorie per «{name}».", cmNoOther: "Hai un solo conto. Crea un secondo conto per poter copiare le categorie dall'uno all'altro.", cmCount: "Categorie: {n}", cmShareTitle: "Condividi un modello", cmShareDesc: "Manda questo link (o il codice) a chi vuoi: vedrà un'anteprima e deciderà se applicarlo. Contiene solo nomi, percentuali e colori delle categorie di «{name}».", cmShareSystem: "Condividi…", cmCopyLink: "Copia il link", cmCopyCode: "Copia il codice", cmCopied: "Copiato ✓", cmCopyFail: "Non sono riuscito a copiare: tieni premuto sul testo e scegli «Copia».", cmShareMsg: "Il mio modello di categorie per Finbar:", cmImportTitle: "Importa un modello", cmImportDesc: "Incolla qui il codice o il link che hai ricevuto.", cmImportPh: "Codice o link", cmContinue: "Continua", cmBad: "Codice non valido. Controlla di averlo copiato per intero.", cmConfirmTitle: "Applicare queste categorie?", cmConfirmTo: "Conto di destinazione", cmWarnReplace: "ATTENZIONE: le categorie attuali del conto verranno sostituite e i saldi di categoria ricalcolati con le nuove percentuali. Il saldo totale non cambia.", cmWarnLearned: "ATTENZIONE: nel conto le parole imparate ({n}) verranno azzerate e dovranno essere reimparate.", cmWarnRecurring: "Entrate/uscite automatiche con una categoria che non esiste nel nuovo elenco: {n}. Passeranno a «tutte le categorie».", cmWarnDues: "Scadenze con una categoria che non esiste nel nuovo elenco: {n}. La categoria si sceglierà al momento del pagamento.", cmWarnUndo: "Le operazioni già registrate restano nello storico, ma non potranno più essere annullate.", cmApply: "Applica", cmCancel: "Annulla",
     recurringMenuShort: "Entrate/uscite automatiche", settingsMenuHint: "Tocca una sezione per aprirla",
     currencyConverting: "Conversione in corso, un attimo…", currencyConvertError: "Impossibile convertire: serve una connessione internet, oppure il cambio per questa valuta non è al momento disponibile.",
     legalMenuLabel: "Privacy e Termini", legalTabPrivacy: "Privacy", legalTabTerms: "Termini", legalCheckboxLabel: "Ho letto e accetto la Privacy Policy e i Termini di Utilizzo", legalContinueBtn: "Continua", legalCourtesyNote: "Traduzione di cortesia — fa fede la versione in italiano.",
@@ -1033,6 +1036,7 @@ const UI = {
     deleteConfirmTitle: "Delete this account?",     deleteConfirmWarning: "WARNING: deleting this account will also erase the cloud data linked to your sync code. If it's your only account, the code will stop working to recover data on other devices. This cannot be undone.",    deleteConfirmCancel: "Cancel", deleteConfirmBtn: "Delete permanently",
     updateAvailable: "New version available", updateBtn: "Update now",
     saveCategoriesBtn: "Save categories", catErrorPrefix: "Can't complete this: the percentages add up to", catErrorSuffix: "%. They must add up to exactly 100%.",
+    cmTitle: "Copy and share categories", cmDesc: "Reuse the same categories and percentages in another account or with someone else. Only names, percentages and colors are copied: never balances or transactions.", cmCopyBtn: "Copy from another account", cmShareBtn: "Share a template", cmImportBtn: "Import a template", cmCopyTitle: "Copy from another account", cmCopyPick: "Choose the account to copy categories from, for “{name}”.", cmNoOther: "You only have one account. Create a second account to copy categories between them.", cmCount: "Categories: {n}", cmShareTitle: "Share a template", cmShareDesc: "Send this link (or the code) to anyone: they'll see a preview and decide whether to apply it. It only contains the names, percentages and colors of the categories of “{name}”.", cmShareSystem: "Share…", cmCopyLink: "Copy link", cmCopyCode: "Copy code", cmCopied: "Copied ✓", cmCopyFail: "Couldn't copy automatically: press and hold the text and choose “Copy”.", cmShareMsg: "My category template for Finbar:", cmImportTitle: "Import a template", cmImportDesc: "Paste the code or link you received.", cmImportPh: "Code or link", cmContinue: "Continue", cmBad: "Invalid code. Make sure you copied all of it.", cmConfirmTitle: "Apply these categories?", cmConfirmTo: "Destination account", cmWarnReplace: "WARNING: this account's current categories will be replaced and the category balances recalculated with the new percentages. The total balance doesn't change.", cmWarnLearned: "WARNING: this account's learned words ({n}) will be reset and will have to be learned again.", cmWarnRecurring: "Automatic income/expense rules with a category that isn't in the new list: {n}. They'll switch to “all categories”.", cmWarnDues: "Due dates with a category that isn't in the new list: {n}. You'll choose the category when you pay.", cmWarnUndo: "Transactions already recorded stay in the history, but can no longer be undone.", cmApply: "Apply", cmCancel: "Cancel",
     recurringMenuShort: "Automatic income & expenses", settingsMenuHint: "Tap a section to open it",
     currencyConverting: "Converting, one moment…", currencyConvertError: "Couldn't convert: you need an internet connection, or the rate for this currency isn't available right now.",
     legalMenuLabel: "Privacy & Terms", legalTabPrivacy: "Privacy", legalTabTerms: "Terms", legalCheckboxLabel: "I have read and accept the Privacy Policy and Terms of Use", legalContinueBtn: "Continue", legalCourtesyNote: "Courtesy translation — the Italian version is authoritative.",
@@ -1079,6 +1083,7 @@ const UI = {
     deleteConfirmTitle: "Ștergi acest cont?",     deleteConfirmWarning: "ATENȚIE: ștergând acest cont vor fi șterse și datele din cloud asociate codului tău de sincronizare. Dacă este singurul cont, codul nu va mai putea recupera date pe alte dispozitive. Operația nu poate fi anulată.",    deleteConfirmCancel: "Anulează", deleteConfirmBtn: "Șterge definitiv",
     updateAvailable: "Versiune nouă disponibilă", updateBtn: "Actualizează acum",
     saveCategoriesBtn: "Salvează categoriile", catErrorPrefix: "Operațiune imposibilă: procentele însumează", catErrorSuffix: "%. Trebuie să însumeze exact 100%.",
+    cmTitle: "Copiază și partajează categoriile", cmDesc: "Folosește aceleași categorii și procente într-un alt cont sau cu o altă persoană. Se copiază doar numele, procentele și culorile: niciodată solduri sau tranzacții.", cmCopyBtn: "Copiază de la alt cont", cmShareBtn: "Partajează un model", cmImportBtn: "Importă un model", cmCopyTitle: "Copiază de la alt cont", cmCopyPick: "Alege contul din care copiezi categoriile pentru „{name}”.", cmNoOther: "Ai un singur cont. Creează un al doilea cont ca să poți copia categoriile de la unul la altul.", cmCount: "Categorii: {n}", cmShareTitle: "Partajează un model", cmShareDesc: "Trimite acest link (sau codul) cui vrei: va vedea o previzualizare și va decide dacă îl aplică. Conține doar numele, procentele și culorile categoriilor din „{name}”.", cmShareSystem: "Partajează…", cmCopyLink: "Copiază linkul", cmCopyCode: "Copiază codul", cmCopied: "Copiat ✓", cmCopyFail: "Nu am reușit să copiez: ține apăsat pe text și alege „Copiază”.", cmShareMsg: "Modelul meu de categorii pentru Finbar:", cmImportTitle: "Importă un model", cmImportDesc: "Lipește aici codul sau linkul primit.", cmImportPh: "Cod sau link", cmContinue: "Continuă", cmBad: "Cod invalid. Verifică să-l fi copiat în întregime.", cmConfirmTitle: "Aplici aceste categorii?", cmConfirmTo: "Contul de destinație", cmWarnReplace: "ATENȚIE: categoriile actuale ale contului vor fi înlocuite, iar soldurile categoriilor recalculate cu noile procente. Soldul total nu se schimbă.", cmWarnLearned: "ATENȚIE: cuvintele învățate ale contului ({n}) vor fi șterse și va trebui învățate din nou.", cmWarnRecurring: "Venituri/cheltuieli automate cu o categorie care nu există în noua listă: {n}. Vor trece la „toate categoriile”.", cmWarnDues: "Scadențe cu o categorie care nu există în noua listă: {n}. Categoria se va alege în momentul plății.", cmWarnUndo: "Operațiunile deja înregistrate rămân în istoric, dar nu vor mai putea fi anulate.", cmApply: "Aplică", cmCancel: "Anulează",
     recurringMenuShort: "Venituri/cheltuieli automate", settingsMenuHint: "Atinge o secțiune pentru a o deschide",
     currencyConverting: "Conversie în curs, un moment…", currencyConvertError: "Conversie eșuată: ai nevoie de o conexiune la internet, sau cursul pentru această monedă nu este disponibil momentan.",
     legalMenuLabel: "Confidențialitate și Termeni", legalTabPrivacy: "Confidențialitate", legalTabTerms: "Termeni", legalCheckboxLabel: "Am citit și accept Politica de Confidențialitate și Termenii de Utilizare", legalContinueBtn: "Continuă", legalCourtesyNote: "Traducere de curtoazie — versiunea în italiană este de referință.",
@@ -1125,6 +1130,7 @@ const UI = {
     deleteConfirmTitle: "Удалить этот счёт?",     deleteConfirmWarning: "ВНИМАНИЕ: удаление этого счёта также сотрёт данные в облаке, связанные с вашим кодом синхронизации. Если это ваш единственный счёт, код перестанет восстанавливать данные на других устройствах. Действие необратимо.",    deleteConfirmCancel: "Отмена", deleteConfirmBtn: "Удалить окончательно",
     updateAvailable: "Доступна новая версия", updateBtn: "Обновить сейчас",
     saveCategoriesBtn: "Сохранить категории", catErrorPrefix: "Невозможно выполнить: сумма процентов составляет", catErrorSuffix: "%. Сумма должна быть ровно 100%.",
+    cmTitle: "Копирование и обмен категориями", cmDesc: "Используйте те же категории и проценты в другом счёте или поделитесь ими с другим человеком. Копируются только названия, проценты и цвета: никогда балансы или операции.", cmCopyBtn: "Скопировать из другого счёта", cmShareBtn: "Поделиться шаблоном", cmImportBtn: "Импортировать шаблон", cmCopyTitle: "Скопировать из другого счёта", cmCopyPick: "Выберите счёт, из которого скопировать категории для «{name}».", cmNoOther: "У вас только один счёт. Создайте второй счёт, чтобы копировать категории между ними.", cmCount: "Категорий: {n}", cmShareTitle: "Поделиться шаблоном", cmShareDesc: "Отправьте эту ссылку (или код) кому хотите: человек увидит предпросмотр и решит, применять ли его. В нём только названия, проценты и цвета категорий счёта «{name}».", cmShareSystem: "Поделиться…", cmCopyLink: "Копировать ссылку", cmCopyCode: "Копировать код", cmCopied: "Скопировано ✓", cmCopyFail: "Не удалось скопировать: удерживайте текст и выберите «Копировать».", cmShareMsg: "Мой шаблон категорий для Finbar:", cmImportTitle: "Импортировать шаблон", cmImportDesc: "Вставьте полученный код или ссылку.", cmImportPh: "Код или ссылка", cmContinue: "Продолжить", cmBad: "Неверный код. Проверьте, что вы скопировали его целиком.", cmConfirmTitle: "Применить эти категории?", cmConfirmTo: "Счёт назначения", cmWarnReplace: "ВНИМАНИЕ: текущие категории счёта будут заменены, а балансы категорий пересчитаны по новым процентам. Общий баланс не изменится.", cmWarnLearned: "ВНИМАНИЕ: изученные слова счёта ({n}) будут сброшены, и их придётся учить заново.", cmWarnRecurring: "Автоматических доходов/расходов, использовавших категории, которых нет в новом списке: {n}. Они перейдут на «все категории».", cmWarnDues: "Платежей по срокам, использовавших категории, которых нет в новом списке: {n}. Категорию нужно будет выбрать при оплате.", cmWarnUndo: "Уже записанные операции останутся в истории, но отменить их будет нельзя.", cmApply: "Применить", cmCancel: "Отмена",
     recurringMenuShort: "Автоматические доходы и расходы", settingsMenuHint: "Нажмите на раздел, чтобы открыть его",
     currencyConverting: "Конвертация, один момент…", currencyConvertError: "Не удалось выполнить конвертацию: нужно подключение к интернету, либо курс для этой валюты сейчас недоступен.",
     legalMenuLabel: "Конфиденциальность и Условия", legalTabPrivacy: "Конфиденциальность", legalTabTerms: "Условия", legalCheckboxLabel: "Я прочитал(а) и принимаю Политику конфиденциальности и Условия использования", legalContinueBtn: "Продолжить", legalCourtesyNote: "Перевод для удобства — официальной является итальянская версия.",
@@ -1171,6 +1177,7 @@ const UI = {
     deleteConfirmTitle: "删除此账户？",     deleteConfirmWarning: "警告：删除此账户还会清除与你的同步代码关联的云端数据。如果这是你唯一的账户，该代码将无法再在其他设备上恢复数据。此操作无法撤销。",    deleteConfirmCancel: "取消", deleteConfirmBtn: "永久删除",
     updateAvailable: "有新版本可用", updateBtn: "立即更新",
     saveCategoriesBtn: "保存分类", catErrorPrefix: "无法完成：百分比总和为", catErrorSuffix: "%。总和必须正好是100%。",
+    cmTitle: "复制和分享分类", cmDesc: "在另一个账户或与他人使用相同的分类和百分比。只会复制名称、百分比和颜色，绝不包含余额或交易记录。", cmCopyBtn: "从其他账户复制", cmShareBtn: "分享模板", cmImportBtn: "导入模板", cmCopyTitle: "从其他账户复制", cmCopyPick: "请选择要为“{name}”复制分类的来源账户。", cmNoOther: "你只有一个账户。创建第二个账户后才能在账户之间复制分类。", cmCount: "{n} 个分类", cmShareTitle: "分享模板", cmShareDesc: "把这个链接（或代码）发给任何人：对方会先看到预览，再决定是否应用。其中只包含“{name}”的分类名称、百分比和颜色。", cmShareSystem: "分享…", cmCopyLink: "复制链接", cmCopyCode: "复制代码", cmCopied: "已复制 ✓", cmCopyFail: "无法自动复制：请长按文字并选择“复制”。", cmShareMsg: "我的 Finbar 分类模板：", cmImportTitle: "导入模板", cmImportDesc: "请粘贴收到的代码或链接。", cmImportPh: "代码或链接", cmContinue: "继续", cmBad: "代码无效，请确认已完整复制。", cmConfirmTitle: "应用这些分类？", cmConfirmTo: "目标账户", cmWarnReplace: "注意：该账户当前的分类将被替换，各分类余额会按新百分比重新计算。总余额不变。", cmWarnLearned: "注意：该账户已学会的词（{n} 个）将被清除，需要重新学习。", cmWarnRecurring: "有 {n} 条自动收支使用了新列表中不存在的分类：它们将改为“所有分类”。", cmWarnDues: "有 {n} 笔到期事项使用了新列表中不存在的分类：付款时再选择分类。", cmWarnUndo: "已记录的交易会保留在历史中，但无法再撤销。", cmApply: "应用", cmCancel: "取消",
     recurringMenuShort: "自动收支", settingsMenuHint: "点击某个部分即可打开",
     currencyConverting: "正在转换，请稍候…", currencyConvertError: "无法转换：需要网络连接，或该货币当前没有可用汇率。",
     legalMenuLabel: "隐私与条款", legalTabPrivacy: "隐私政策", legalTabTerms: "使用条款", legalCheckboxLabel: "我已阅读并接受隐私政策和使用条款", legalContinueBtn: "继续", legalCourtesyNote: "礼节性翻译——以意大利文版本为准。",
@@ -1554,6 +1561,8 @@ export default function Finbar() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [catDraft, setCatDraft] = useState(null);
   const [catSaveError, setCatSaveError] = useState(null);
+  const [modelDlg, setModelDlg] = useState(null); // dialogo copia/condividi/importa modello di categorie
+  const [pendingModelCode, setPendingModelCode] = useState(null); // codice arrivato da un link ?modello=…
   const [settingsSection, setSettingsSection] = useState(null);
   const [highlightedCatId, setHighlightedCatId] = useState(null);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
@@ -1801,6 +1810,25 @@ export default function Finbar() {
     window.addEventListener("finbar:need-refresh", onNeedRefresh);
     return () => window.removeEventListener("finbar:need-refresh", onNeedRefresh);
   }, []);
+  // link di condivisione (?modello=CODICE): si legge una volta, si toglie dall'indirizzo e si apre l'anteprima
+  // appena l'app è pronta (nessuna schermata iniziale davanti e almeno un conto)
+  useEffect(() => {
+    try {
+      const u = new URL(window.location.href);
+      const c = u.searchParams.get(MODEL_PARAM);
+      if (c) {
+        setPendingModelCode(c);
+        u.searchParams.delete(MODEL_PARAM);
+        window.history.replaceState(null, "", u.pathname + u.search + u.hash);
+      }
+    } catch {}
+  }, []);
+  useEffect(() => {
+    if (pendingModelCode && !loading && account && !showLanguagePicker && !showLegalGate && tourStep === null && !showNewAccount && !modelDlg) {
+      setModelDlg({ mode: "import", code: pendingModelCode });
+      setPendingModelCode(null);
+    }
+  }, [pendingModelCode, loading, account, showLanguagePicker, showLegalGate, tourStep, showNewAccount, modelDlg]);
   useEffect(() => {
     if (showSettings && account) {
       setCatDraft(JSON.parse(JSON.stringify(account.categories)));
@@ -2152,6 +2180,18 @@ export default function Finbar() {
     const acc = { ...account, categories: newCats };
     persistAccounts({ ...accounts, [acc.id]: acc }, activeId);
     setCatSaveError(null);
+  };
+  // Applica un modello di categorie (copiato da un altro conto o importato) al conto scelto e lo salva subito:
+  // la conferma con gli avvisi è nel dialogo, quindi qui non c'è una bozza intermedia.
+  const applyModel = (destId, items) => {
+    const dest = accounts[destId];
+    if (!dest) return;
+    const acc = applyPlan(dest, planApply(dest, items));
+    persistAccounts({ ...accounts, [destId]: acc }, activeId);
+    if (destId === activeId) {
+      setCatDraft(JSON.parse(JSON.stringify(acc.categories)));
+      setCatSaveError(null);
+    }
   };
   const forgetLearnedTerm = (word) => {
     const next = { ...(account.learnedTerms || {}) };
@@ -3275,6 +3315,13 @@ export default function Finbar() {
         </Modal>
       )}
 
+      {/* ===== Copia / condividi / importa modello di categorie ===== */}
+      {modelDlg && account && (
+        <div style={{ position: "relative", zIndex: 30 }}>
+          <ModelDialog init={modelDlg} accounts={accounts} activeId={activeId} ui={ui} t={t} fs={fs} onApply={applyModel} onClose={() => setModelDlg(null)} />
+        </div>
+      )}
+
       {/* ===== New account modal ===== */}
       {showNewAccount && (
         <Modal onClose={() => Object.keys(accounts).length > 0 && setShowNewAccount(false)} title={newAccountMode === "create" ? ui.newAccountTitle : ui.restoreTitle} t={t} fs={fs}>
@@ -3842,6 +3889,20 @@ export default function Finbar() {
                 {ui.saveCategoriesBtn}
               </button>
 
+              <div style={{ marginTop: 16, padding: 12, background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 12 }}>
+                <div style={{ fontSize: fs(13), fontWeight: 700, color: t.textStrong, marginBottom: 4 }}>{ui.cmTitle}</div>
+                <div style={{ fontSize: fs(11.5), color: t.textMuted, lineHeight: 1.5, marginBottom: 10 }}>{ui.cmDesc}</div>
+                {[
+                  { key: "copy", label: ui.cmCopyBtn, icon: <Copy size={14} /> },
+                  { key: "share", label: ui.cmShareBtn, icon: <Send size={14} /> },
+                  { key: "import", label: ui.cmImportBtn, icon: <Download size={14} /> },
+                ].map((b) => (
+                  <button key={b.key} onClick={() => setModelDlg({ mode: b.key })} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "10px 0", borderRadius: 10, border: `1px solid ${t.surfaceBorder}`, background: t.surface, color: t.textStrong, fontSize: fs(12.5), fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>
+                    {b.icon} {b.label}
+                  </button>
+                ))}
+              </div>
+
               {Object.keys(account.learnedTerms || {}).length > 0 && (
                 <>
                   <div style={{ fontSize: fs(12), color: t.textMuted, margin: "18px 0 8px" }}>{ui.learnedWords}</div>
@@ -4314,6 +4375,125 @@ function DueForm({ accent, t, categories, onSave, onCancel, initial, tr, ui, fs 
         </button>
       </div>
     </div>
+  );
+}
+
+function ModelDialog({ init, accounts, activeId, ui, t, fs = (px) => px, onApply, onClose }) {
+  const [mode, setMode] = useState(init.mode); // copy | share | import | confirm
+  const [prevMode, setPrevMode] = useState(init.mode);
+  const [code, setCode] = useState(init.code || "");
+  const [bad, setBad] = useState(false);
+  const [pending, setPending] = useState(null); // { items }
+  const [destId, setDestId] = useState(activeId);
+  const [copied, setCopied] = useState("");
+  const active = accounts[activeId];
+  const dest = accounts[destId] || active;
+  const others = Object.values(accounts).filter((a) => a.id !== activeId);
+  const myCode = useMemo(() => (active ? encodeModel(active.categories) : ""), [active]);
+  const link = `${window.location.origin}${window.location.pathname}?${MODEL_PARAM}=${myCode}`;
+  const plan = useMemo(() => (pending && dest ? planApply(dest, pending.items) : null), [pending, dest]);
+  const fill = (str, vars) => Object.entries(vars).reduce((s, [k, v]) => s.replace(`{${k}}`, v), str);
+
+  const goConfirm = (items, from) => { setPending({ items }); setPrevMode(from); setMode("confirm"); };
+  const tryImport = (text) => {
+    const r = decodeModel(text);
+    if (!r.ok) { setBad(true); return; }
+    setBad(false);
+    goConfirm(r.items, "import");
+  };
+  useEffect(() => { if (init.code) tryImport(init.code); }, []); // eslint-disable-line
+
+  const copy = async (text, key) => {
+    try { await navigator.clipboard.writeText(text); setCopied(key); }
+    catch { setCopied("fail"); }
+    setTimeout(() => setCopied(""), 2500);
+  };
+  const share = async () => {
+    try { await navigator.share({ title: "Finbar", text: ui.cmShareMsg, url: link }); } catch {}
+  };
+
+  const preview = (items) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, margin: "10px 0 12px" }}>
+      {items.map((c, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: fs(12.5), color: t.textPrimary }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: c.color, flexShrink: 0 }} />
+          <span style={{ flex: 1, wordBreak: "break-word" }}>{c.label}</span>
+          <span className="num" style={{ color: t.textMuted }}>{c.pct}%</span>
+        </div>
+      ))}
+    </div>
+  );
+  const secBtn = { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "10px 0", borderRadius: 10, border: `1px solid ${t.surfaceBorder}`, background: t.surface, color: t.textStrong, fontSize: fs(12.5), fontWeight: 600, cursor: "pointer", marginBottom: 8 };
+  const mainBtn = { width: "100%", padding: "11px 0", borderRadius: 10, border: "none", background: t.accent, color: t.onAccent, fontSize: fs(13), fontWeight: 700, cursor: "pointer", marginBottom: 8 };
+  const warn = (txt, k) => (
+    <div key={k} style={{ fontSize: fs(12), color: "#F0B429", background: "rgba(240,180,41,0.08)", border: "1px solid #4A3F1E", borderRadius: 8, padding: "8px 10px", marginBottom: 8, lineHeight: 1.5 }}>{txt}</div>
+  );
+  const title = mode === "copy" ? ui.cmCopyTitle : mode === "share" ? ui.cmShareTitle : mode === "import" ? ui.cmImportTitle : ui.cmConfirmTitle;
+
+  return (
+    <Modal onClose={onClose} onBack={mode === "confirm" && prevMode !== mode ? () => setMode(prevMode) : undefined} title={title} t={t} fs={fs}>
+      {mode === "copy" && (
+        others.length === 0 ? (
+          <div style={{ fontSize: fs(12.5), color: t.textMuted, lineHeight: 1.5 }}>{ui.cmNoOther}</div>
+        ) : (
+          <>
+            <div style={{ fontSize: fs(12.5), color: t.textMuted, lineHeight: 1.5, marginBottom: 12 }}>{fill(ui.cmCopyPick, { name: active.name })}</div>
+            {others.map((a) => (
+              <button key={a.id} onClick={() => goConfirm(itemsFromAccount(a), "copy")} style={{ ...secBtn, justifyContent: "space-between", padding: "11px 14px" }}>
+                <span style={{ textAlign: "left", wordBreak: "break-word" }}>{a.name}</span>
+                <span style={{ fontSize: fs(11.5), color: t.textMuted, fontWeight: 500 }}>{fill(ui.cmCount, { n: Object.keys(a.categories || {}).length })}</span>
+              </button>
+            ))}
+          </>
+        )
+      )}
+
+      {mode === "share" && (
+        <>
+          <div style={{ fontSize: fs(12.5), color: t.textMuted, lineHeight: 1.5 }}>{fill(ui.cmShareDesc, { name: active.name })}</div>
+          {preview(itemsFromAccount(active))}
+          <textarea readOnly value={link} rows={4} onFocus={(e) => e.target.select()} style={{ ...inputStyle(t, fs), fontFamily: "'JetBrains Mono', monospace", fontSize: fs(10.5), resize: "none", marginBottom: 10 }} />
+          {typeof navigator !== "undefined" && navigator.share && (
+            <button onClick={share} style={mainBtn}>{ui.cmShareSystem}</button>
+          )}
+          <button onClick={() => copy(link, "link")} style={secBtn}><Copy size={14} /> {copied === "link" ? ui.cmCopied : ui.cmCopyLink}</button>
+          <button onClick={() => copy(myCode, "code")} style={secBtn}><Copy size={14} /> {copied === "code" ? ui.cmCopied : ui.cmCopyCode}</button>
+          {copied === "fail" && <div style={{ fontSize: fs(11.5), color: t.textMuted, lineHeight: 1.5 }}>{ui.cmCopyFail}</div>}
+        </>
+      )}
+
+      {mode === "import" && (
+        <>
+          <div style={{ fontSize: fs(12.5), color: t.textMuted, lineHeight: 1.5, marginBottom: 10 }}>{ui.cmImportDesc}</div>
+          <textarea value={code} onChange={(e) => { setCode(e.target.value); setBad(false); }} placeholder={ui.cmImportPh} rows={4} style={{ ...inputStyle(t, fs), fontFamily: "'JetBrains Mono', monospace", fontSize: fs(11), resize: "none", marginBottom: 10 }} />
+          {bad && <div style={{ fontSize: fs(12), color: "#FF7A6B", background: "rgba(255,122,107,0.08)", border: "1px solid #4A2A2A", borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>{ui.cmBad}</div>}
+          <button onClick={() => tryImport(code)} disabled={!code.trim()} style={{ ...mainBtn, opacity: code.trim() ? 1 : 0.5 }}>{ui.cmContinue}</button>
+        </>
+      )}
+
+      {mode === "confirm" && pending && plan && dest && (
+        <>
+          {prevMode === "import" && Object.keys(accounts).length > 1 ? (
+            <>
+              <label style={{ display: "block", fontSize: fs(12), color: t.textMuted, marginBottom: 5 }}>{ui.cmConfirmTo}</label>
+              <select value={dest.id} onChange={(e) => setDestId(e.target.value)} style={selectStyle(t, fs)}>
+                {Object.values(accounts).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </>
+          ) : (
+            <div style={{ fontSize: fs(12.5), color: t.textMuted }}>{ui.cmConfirmTo}: <span style={{ color: t.textStrong, fontWeight: 600 }}>{dest.name}</span></div>
+          )}
+          {preview(plan.list)}
+          {warn(ui.cmWarnReplace, "r")}
+          {plan.learnedCount > 0 && warn(fill(ui.cmWarnLearned, { n: plan.learnedCount }), "l")}
+          {plan.recurringLost > 0 && warn(fill(ui.cmWarnRecurring, { n: plan.recurringLost }), "rc")}
+          {plan.duesLost > 0 && warn(fill(ui.cmWarnDues, { n: plan.duesLost }), "d")}
+          {plan.undoLost > 0 && warn(ui.cmWarnUndo, "u")}
+          <button onClick={() => { onApply(dest.id, pending.items); onClose(); }} style={{ ...mainBtn, marginTop: 4 }}>{ui.cmApply}</button>
+          <button onClick={onClose} style={secBtn}>{ui.cmCancel}</button>
+        </>
+      )}
+    </Modal>
   );
 }
 
