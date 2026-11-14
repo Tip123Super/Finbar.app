@@ -2,6 +2,8 @@
 // Un "modello" contiene SOLO nome, percentuale e colore di ogni categoria: mai saldi, transazioni, codici di sincronizzazione.
 // Tutto avviene nel dispositivo (nessun server). Il codice arriva da fuori, quindi viene sempre validato.
 
+import { rebaselineBudget } from "./budgetLogic";
+
 export const MODEL_PREFIX = "FB1.";
 export const MODEL_PARAM = "modello";
 const MAX_CATS = 20;
@@ -130,7 +132,7 @@ export function planApply(account, items) {
   });
   const learnedCount = Object.keys(account.learnedTerms || {}).length;
   const undoLost = (account.transactions || []).filter((tx) => tx.breakdown).length;
-  return { list, recurring, dues, recurringLost, duesLost, learnedCount, undoLost };
+  return { list, idMap, recurring, dues, recurringLost, duesLost, learnedCount, undoLost };
 }
 
 // Applica il piano: nuove categorie con saldi ricalcolati dal saldo totale (come "Salva categorie"),
@@ -141,7 +143,7 @@ export function applyPlan(account, plan) {
   plan.list.forEach((c) => {
     categories[c.id] = { label: c.label, pct: c.pct, color: c.color, balance: (account.totalBalance * c.pct) / 100 };
   });
-  return {
+  const next = {
     ...account,
     categories,
     learnedTerms: {},
@@ -153,4 +155,11 @@ export function applyPlan(account, plan) {
       return rest;
     }),
   };
+  // il budget segue le categorie con lo stesso nome; le altre perdono il budget
+  if (account.budget) {
+    const items = {};
+    Object.entries(account.budget.items || {}).forEach(([oldId, v]) => { if (plan.idMap[oldId]) items[plan.idMap[oldId]] = v; });
+    next.budget = rebaselineBudget({ ...next, budget: { ...account.budget, items } });
+  }
+  return next;
 }

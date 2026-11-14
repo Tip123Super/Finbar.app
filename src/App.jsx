@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Plus, Trash2, Wallet, Send, Mic, MicOff, Camera, X, Check, ArrowLeftRight,
-  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2, Download, Table, FileText, Bell, RotateCcw, Archive, ChevronUp, Calendar, Pencil,
+  Settings, MessageCircle, LayoutGrid, History, ChevronDown, ChevronRight, ChevronLeft, Palette, TrendingUp, TrendingDown, Volume2, Copy, Cloud, RefreshCw, KeyRound, Languages, Tag, Repeat, Shield, Type, Maximize2, Download, Table, FileText, Bell, RotateCcw, Archive, ChevronUp, Calendar, Pencil, Target,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, LineChart, Line, ReferenceLine, CartesianGrid } from "recharts";
 import { scanReceiptWithTesseract } from "./receiptOcr";
 import { LEGAL_TEXT } from "./legalText";
 import { getDailyTip } from "./dailyTips";
+import { BUDGET_MAX_SHARE, localToday, periodFor, normalizePeriod, spentByCategory, capFor, hasBudget, budgetRows, validateItems, buildBudget, evaluateBudget } from "./budgetLogic";
 import { MODEL_PARAM, encodeModel, decodeModel, itemsFromAccount, planApply, applyPlan } from "./categoryModel";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -38,7 +39,8 @@ const PUSH_HIDE_AMOUNTS_KEY = "finex:push-hide-amounts";
 const PUSH_DUES_KEY = "finex:push-dues";
 // Versione dell'app, mostrata in fondo al menu delle Impostazioni: serve a capire quale build gira sul telefono
 // (l'app installata può tenere in cache una versione vecchia). Da aggiornare a ogni rilascio.
-const APP_VERSION = "2026.11.13-a";
+const APP_VERSION = "2026.11.14-a";
+const fillTpl = (str, vars) => Object.entries(vars).reduce((acc, [k, v]) => acc.split(`{${k}}`).join(v), str);
 // Chiave pubblica VAPID per le notifiche push (non è segreta; la privata sta solo nei segreti di Supabase).
 const VAPID_PUBLIC_KEY = "BKHQiTELxMKhcohPqrGfjcEOPtsbPu1Dp9-bkzEkNdJtoDl2MYebXYQZ9MEHvLK456oprllimPVV9jWIi5YMbCc";
 const NOTIF_TIP_ENABLED_KEY = "finex:notif-tip-enabled";
@@ -1002,6 +1004,7 @@ const UI = {
     updateAvailable: "Nuova versione disponibile", updateBtn: "Aggiorna ora",
     saveCategoriesBtn: "Salva categorie", catErrorPrefix: "Impossibile completare l'operazione: le percentuali sommano al", catErrorSuffix: "%. Devono sommare esattamente al 100%.",
     cmTitle: "Copia e condividi le categorie", cmDesc: "Riusa le stesse categorie e percentuali in un altro conto o con un'altra persona. Si copiano solo nomi, percentuali e colori: mai saldi né transazioni.", cmCopyBtn: "Copia da un altro conto", cmShareBtn: "Condividi un modello", cmImportBtn: "Importa un modello", cmCopyTitle: "Copia da un altro conto", cmCopyPick: "Scegli il conto da cui copiare le categorie per «{name}».", cmNoOther: "Hai un solo conto. Crea un secondo conto per poter copiare le categorie dall'uno all'altro.", cmCount: "Categorie: {n}", cmShareTitle: "Condividi un modello", cmShareDesc: "Manda questo link (o il codice) a chi vuoi: vedrà un'anteprima e deciderà se applicarlo. Contiene solo nomi, percentuali e colori delle categorie di «{name}».", cmShareSystem: "Condividi…", cmCopyLink: "Copia il link", cmCopyCode: "Copia il codice", cmCopied: "Copiato ✓", cmCopyFail: "Non sono riuscito a copiare: tieni premuto sul testo e scegli «Copia».", cmShareMsg: "Il mio modello di categorie per Finbar:", cmImportTitle: "Importa un modello", cmImportDesc: "Incolla qui il codice o il link che hai ricevuto.", cmImportPh: "Codice o link", cmContinue: "Continua", cmBad: "Codice non valido. Controlla di averlo copiato per intero.", cmConfirmTitle: "Applicare queste categorie?", cmConfirmTo: "Conto di destinazione", cmWarnReplace: "ATTENZIONE: le categorie attuali del conto verranno sostituite e i saldi di categoria ricalcolati con le nuove percentuali. Il saldo totale non cambia.", cmWarnLearned: "ATTENZIONE: nel conto le parole imparate ({n}) verranno azzerate e dovranno essere reimparate.", cmWarnRecurring: "Entrate/uscite automatiche con una categoria che non esiste nel nuovo elenco: {n}. Passeranno a «tutte le categorie».", cmWarnDues: "Scadenze con una categoria che non esiste nel nuovo elenco: {n}. La categoria si sceglierà al momento del pagamento.", cmWarnUndo: "Le operazioni già registrate restano nello storico, ma non potranno più essere annullate.", cmApply: "Applica", cmCancel: "Annulla",
+    bdMenu: "Budget", bdIntro: "Scegli quanto vuoi spendere al massimo in ogni categoria durante un periodo. Puoi sempre spendere di più: ti avviso al 25%, 50%, 75%, 85% e 100% del budget. Lascia vuota una categoria se non vuoi un budget.", bdPeriodTitle: "Periodo", bdPeriodMonth: "Mese", bdPeriodWeek: "Settimana", bdPeriodCustom: "Personalizzato", bdMonthStart: "Il periodo inizia il giorno", bdWeekNote: "La settimana va da lunedì a domenica.", bdEvery: "Ogni", bdUnitDays: "giorni", bdUnitWeeks: "settimane", bdFrom: "a partire dal", bdCurrent: "Periodo attuale: {from} – {to}", bdColCat: "Categoria", bdColBudget: "Budget", bdColSpent: "Speso", bdColDiff: "Differenza", bdMax: "max {n}", bdOver: "Oltre il massimo consentito", bdNoFunds: "Nessun fondo disponibile in questa categoria", bdTotal: "Totale", bdMaxHint: "Il massimo per ogni categoria è il {p}% dei soldi disponibili nel periodo (saldo della categoria + quanto hai già speso).", bdSave: "Salva budget", bdSaved: "Budget salvato ✓", bdSaveErr: "Alcuni budget superano il massimo consentito: correggili per salvare.", bdCardTitle: "Budget", bdAlertTitle: "{cat}: {p}% del budget", bdAlertTitleFull: "{cat}: budget raggiunto", bdAlertBody: "Hai speso {spent} su {budget}. Ti restano {left}.", bdAlertBodyZero: "Hai speso {spent} su {budget}. Non ti resta più nulla.", bdAlertBodyOver: "Hai speso {spent} su {budget}: sei oltre di {over}.", bdAlertClampTitle: "{cat}: budget ridotto", bdAlertClamp: "Nuovo periodo: il budget è sceso da {old} a {new}, perché il massimo è il {p}% dei soldi disponibili in questa categoria.",
     recurringMenuShort: "Entrate/uscite automatiche", settingsMenuHint: "Tocca una sezione per aprirla",
     currencyConverting: "Conversione in corso, un attimo…", currencyConvertError: "Impossibile convertire: serve una connessione internet, oppure il cambio per questa valuta non è al momento disponibile.",
     legalMenuLabel: "Privacy e Termini", legalTabPrivacy: "Privacy", legalTabTerms: "Termini", legalCheckboxLabel: "Ho letto e accetto la Privacy Policy e i Termini di Utilizzo", legalContinueBtn: "Continua", legalCourtesyNote: "Traduzione di cortesia — fa fede la versione in italiano.",
@@ -1049,6 +1052,7 @@ const UI = {
     updateAvailable: "New version available", updateBtn: "Update now",
     saveCategoriesBtn: "Save categories", catErrorPrefix: "Can't complete this: the percentages add up to", catErrorSuffix: "%. They must add up to exactly 100%.",
     cmTitle: "Copy and share categories", cmDesc: "Reuse the same categories and percentages in another account or with someone else. Only names, percentages and colors are copied: never balances or transactions.", cmCopyBtn: "Copy from another account", cmShareBtn: "Share a template", cmImportBtn: "Import a template", cmCopyTitle: "Copy from another account", cmCopyPick: "Choose the account to copy categories from, for “{name}”.", cmNoOther: "You only have one account. Create a second account to copy categories between them.", cmCount: "Categories: {n}", cmShareTitle: "Share a template", cmShareDesc: "Send this link (or the code) to anyone: they'll see a preview and decide whether to apply it. It only contains the names, percentages and colors of the categories of “{name}”.", cmShareSystem: "Share…", cmCopyLink: "Copy link", cmCopyCode: "Copy code", cmCopied: "Copied ✓", cmCopyFail: "Couldn't copy automatically: press and hold the text and choose “Copy”.", cmShareMsg: "My category template for Finbar:", cmImportTitle: "Import a template", cmImportDesc: "Paste the code or link you received.", cmImportPh: "Code or link", cmContinue: "Continue", cmBad: "Invalid code. Make sure you copied all of it.", cmConfirmTitle: "Apply these categories?", cmConfirmTo: "Destination account", cmWarnReplace: "WARNING: this account's current categories will be replaced and the category balances recalculated with the new percentages. The total balance doesn't change.", cmWarnLearned: "WARNING: this account's learned words ({n}) will be reset and will have to be learned again.", cmWarnRecurring: "Automatic income/expense rules with a category that isn't in the new list: {n}. They'll switch to “all categories”.", cmWarnDues: "Due dates with a category that isn't in the new list: {n}. You'll choose the category when you pay.", cmWarnUndo: "Transactions already recorded stay in the history, but can no longer be undone.", cmApply: "Apply", cmCancel: "Cancel",
+    bdMenu: "Budget", bdIntro: "Choose the most you want to spend in each category during a period. You can always spend more: I'll let you know at 25%, 50%, 75%, 85% and 100% of the budget. Leave a category empty if you don't want a budget for it.", bdPeriodTitle: "Period", bdPeriodMonth: "Month", bdPeriodWeek: "Week", bdPeriodCustom: "Custom", bdMonthStart: "The period starts on day", bdWeekNote: "The week runs from Monday to Sunday.", bdEvery: "Every", bdUnitDays: "days", bdUnitWeeks: "weeks", bdFrom: "starting on", bdCurrent: "Current period: {from} – {to}", bdColCat: "Category", bdColBudget: "Budget", bdColSpent: "Spent", bdColDiff: "Difference", bdMax: "max {n}", bdOver: "Above the maximum allowed", bdNoFunds: "No funds available in this category", bdTotal: "Total", bdMaxHint: "The maximum for each category is {p}% of the money available in the period (the category's balance + what you've already spent).", bdSave: "Save budget", bdSaved: "Budget saved ✓", bdSaveErr: "Some budgets exceed the maximum allowed: fix them to save.", bdCardTitle: "Budget", bdAlertTitle: "{cat}: {p}% of the budget", bdAlertTitleFull: "{cat}: budget reached", bdAlertBody: "You've spent {spent} of {budget}. {left} left.", bdAlertBodyZero: "You've spent {spent} of {budget}. Nothing left.", bdAlertBodyOver: "You've spent {spent} of {budget}: {over} over.", bdAlertClampTitle: "{cat}: budget reduced", bdAlertClamp: "New period: the budget went from {old} to {new}, because the maximum is {p}% of the money available in this category.",
     recurringMenuShort: "Automatic income & expenses", settingsMenuHint: "Tap a section to open it",
     currencyConverting: "Converting, one moment…", currencyConvertError: "Couldn't convert: you need an internet connection, or the rate for this currency isn't available right now.",
     legalMenuLabel: "Privacy & Terms", legalTabPrivacy: "Privacy", legalTabTerms: "Terms", legalCheckboxLabel: "I have read and accept the Privacy Policy and Terms of Use", legalContinueBtn: "Continue", legalCourtesyNote: "Courtesy translation — the Italian version is authoritative.",
@@ -1096,6 +1100,7 @@ const UI = {
     updateAvailable: "Versiune nouă disponibilă", updateBtn: "Actualizează acum",
     saveCategoriesBtn: "Salvează categoriile", catErrorPrefix: "Operațiune imposibilă: procentele însumează", catErrorSuffix: "%. Trebuie să însumeze exact 100%.",
     cmTitle: "Copiază și partajează categoriile", cmDesc: "Folosește aceleași categorii și procente într-un alt cont sau cu o altă persoană. Se copiază doar numele, procentele și culorile: niciodată solduri sau tranzacții.", cmCopyBtn: "Copiază de la alt cont", cmShareBtn: "Partajează un model", cmImportBtn: "Importă un model", cmCopyTitle: "Copiază de la alt cont", cmCopyPick: "Alege contul din care copiezi categoriile pentru „{name}”.", cmNoOther: "Ai un singur cont. Creează un al doilea cont ca să poți copia categoriile de la unul la altul.", cmCount: "Categorii: {n}", cmShareTitle: "Partajează un model", cmShareDesc: "Trimite acest link (sau codul) cui vrei: va vedea o previzualizare și va decide dacă îl aplică. Conține doar numele, procentele și culorile categoriilor din „{name}”.", cmShareSystem: "Partajează…", cmCopyLink: "Copiază linkul", cmCopyCode: "Copiază codul", cmCopied: "Copiat ✓", cmCopyFail: "Nu am reușit să copiez: ține apăsat pe text și alege „Copiază”.", cmShareMsg: "Modelul meu de categorii pentru Finbar:", cmImportTitle: "Importă un model", cmImportDesc: "Lipește aici codul sau linkul primit.", cmImportPh: "Cod sau link", cmContinue: "Continuă", cmBad: "Cod invalid. Verifică să-l fi copiat în întregime.", cmConfirmTitle: "Aplici aceste categorii?", cmConfirmTo: "Contul de destinație", cmWarnReplace: "ATENȚIE: categoriile actuale ale contului vor fi înlocuite, iar soldurile categoriilor recalculate cu noile procente. Soldul total nu se schimbă.", cmWarnLearned: "ATENȚIE: cuvintele învățate ale contului ({n}) vor fi șterse și va trebui învățate din nou.", cmWarnRecurring: "Venituri/cheltuieli automate cu o categorie care nu există în noua listă: {n}. Vor trece la „toate categoriile”.", cmWarnDues: "Scadențe cu o categorie care nu există în noua listă: {n}. Categoria se va alege în momentul plății.", cmWarnUndo: "Operațiunile deja înregistrate rămân în istoric, dar nu vor mai putea fi anulate.", cmApply: "Aplică", cmCancel: "Anulează",
+    bdMenu: "Buget", bdIntro: "Alege cât vrei să cheltuiești cel mult în fiecare categorie într-o perioadă. Poți oricând cheltui mai mult: te anunț la 25%, 50%, 75%, 85% și 100% din buget. Lasă o categorie goală dacă nu vrei buget pentru ea.", bdPeriodTitle: "Perioadă", bdPeriodMonth: "Lună", bdPeriodWeek: "Săptămână", bdPeriodCustom: "Personalizat", bdMonthStart: "Perioada începe în ziua", bdWeekNote: "Săptămâna merge de luni până duminică.", bdEvery: "La fiecare", bdUnitDays: "zile", bdUnitWeeks: "săptămâni", bdFrom: "începând cu", bdCurrent: "Perioada actuală: {from} – {to}", bdColCat: "Categorie", bdColBudget: "Buget", bdColSpent: "Cheltuit", bdColDiff: "Diferență", bdMax: "max {n}", bdOver: "Peste maximul permis", bdNoFunds: "Nu există fonduri disponibile în această categorie", bdTotal: "Total", bdMaxHint: "Maximul pentru fiecare categorie este {p}% din banii disponibili în perioadă (soldul categoriei + cât ai cheltuit deja).", bdSave: "Salvează bugetul", bdSaved: "Buget salvat ✓", bdSaveErr: "Unele bugete depășesc maximul permis: corectează-le ca să salvezi.", bdCardTitle: "Buget", bdAlertTitle: "{cat}: {p}% din buget", bdAlertTitleFull: "{cat}: buget atins", bdAlertBody: "Ai cheltuit {spent} din {budget}. Îți mai rămân {left}.", bdAlertBodyZero: "Ai cheltuit {spent} din {budget}. Nu mai ai nimic.", bdAlertBodyOver: "Ai cheltuit {spent} din {budget}: ești peste cu {over}.", bdAlertClampTitle: "{cat}: buget redus", bdAlertClamp: "Perioadă nouă: bugetul a scăzut de la {old} la {new}, pentru că maximul este {p}% din banii disponibili în această categorie.",
     recurringMenuShort: "Venituri/cheltuieli automate", settingsMenuHint: "Atinge o secțiune pentru a o deschide",
     currencyConverting: "Conversie în curs, un moment…", currencyConvertError: "Conversie eșuată: ai nevoie de o conexiune la internet, sau cursul pentru această monedă nu este disponibil momentan.",
     legalMenuLabel: "Confidențialitate și Termeni", legalTabPrivacy: "Confidențialitate", legalTabTerms: "Termeni", legalCheckboxLabel: "Am citit și accept Politica de Confidențialitate și Termenii de Utilizare", legalContinueBtn: "Continuă", legalCourtesyNote: "Traducere de curtoazie — versiunea în italiană este de referință.",
@@ -1143,6 +1148,7 @@ const UI = {
     updateAvailable: "Доступна новая версия", updateBtn: "Обновить сейчас",
     saveCategoriesBtn: "Сохранить категории", catErrorPrefix: "Невозможно выполнить: сумма процентов составляет", catErrorSuffix: "%. Сумма должна быть ровно 100%.",
     cmTitle: "Копирование и обмен категориями", cmDesc: "Используйте те же категории и проценты в другом счёте или поделитесь ими с другим человеком. Копируются только названия, проценты и цвета: никогда балансы или операции.", cmCopyBtn: "Скопировать из другого счёта", cmShareBtn: "Поделиться шаблоном", cmImportBtn: "Импортировать шаблон", cmCopyTitle: "Скопировать из другого счёта", cmCopyPick: "Выберите счёт, из которого скопировать категории для «{name}».", cmNoOther: "У вас только один счёт. Создайте второй счёт, чтобы копировать категории между ними.", cmCount: "Категорий: {n}", cmShareTitle: "Поделиться шаблоном", cmShareDesc: "Отправьте эту ссылку (или код) кому хотите: человек увидит предпросмотр и решит, применять ли его. В нём только названия, проценты и цвета категорий счёта «{name}».", cmShareSystem: "Поделиться…", cmCopyLink: "Копировать ссылку", cmCopyCode: "Копировать код", cmCopied: "Скопировано ✓", cmCopyFail: "Не удалось скопировать: удерживайте текст и выберите «Копировать».", cmShareMsg: "Мой шаблон категорий для Finbar:", cmImportTitle: "Импортировать шаблон", cmImportDesc: "Вставьте полученный код или ссылку.", cmImportPh: "Код или ссылка", cmContinue: "Продолжить", cmBad: "Неверный код. Проверьте, что вы скопировали его целиком.", cmConfirmTitle: "Применить эти категории?", cmConfirmTo: "Счёт назначения", cmWarnReplace: "ВНИМАНИЕ: текущие категории счёта будут заменены, а балансы категорий пересчитаны по новым процентам. Общий баланс не изменится.", cmWarnLearned: "ВНИМАНИЕ: изученные слова счёта ({n}) будут сброшены, и их придётся учить заново.", cmWarnRecurring: "Автоматических доходов/расходов, использовавших категории, которых нет в новом списке: {n}. Они перейдут на «все категории».", cmWarnDues: "Платежей по срокам, использовавших категории, которых нет в новом списке: {n}. Категорию нужно будет выбрать при оплате.", cmWarnUndo: "Уже записанные операции останутся в истории, но отменить их будет нельзя.", cmApply: "Применить", cmCancel: "Отмена",
+    bdMenu: "Бюджет", bdIntro: "Выберите, сколько максимум вы хотите потратить в каждой категории за период. Тратить больше всё равно можно: я предупрежу при 25%, 50%, 75%, 85% и 100% бюджета. Оставьте категорию пустой, если бюджет для неё не нужен.", bdPeriodTitle: "Период", bdPeriodMonth: "Месяц", bdPeriodWeek: "Неделя", bdPeriodCustom: "Свой", bdMonthStart: "Период начинается с числа", bdWeekNote: "Неделя идёт с понедельника по воскресенье.", bdEvery: "Каждые", bdUnitDays: "дн.", bdUnitWeeks: "нед.", bdFrom: "начиная с", bdCurrent: "Текущий период: {from} – {to}", bdColCat: "Категория", bdColBudget: "Бюджет", bdColSpent: "Потрачено", bdColDiff: "Разница", bdMax: "макс. {n}", bdOver: "Больше допустимого максимума", bdNoFunds: "В этой категории нет доступных средств", bdTotal: "Итого", bdMaxHint: "Максимум для каждой категории — {p}% доступных за период денег (баланс категории + уже потраченное).", bdSave: "Сохранить бюджет", bdSaved: "Бюджет сохранён ✓", bdSaveErr: "Некоторые бюджеты превышают допустимый максимум: исправьте их, чтобы сохранить.", bdCardTitle: "Бюджет", bdAlertTitle: "{cat}: {p}% бюджета", bdAlertTitleFull: "{cat}: бюджет достигнут", bdAlertBody: "Потрачено {spent} из {budget}. Осталось {left}.", bdAlertBodyZero: "Потрачено {spent} из {budget}. Ничего не осталось.", bdAlertBodyOver: "Потрачено {spent} из {budget}: превышение на {over}.", bdAlertClampTitle: "{cat}: бюджет уменьшен", bdAlertClamp: "Новый период: бюджет снизился с {old} до {new}, так как максимум — {p}% доступных денег в этой категории.",
     recurringMenuShort: "Автоматические доходы и расходы", settingsMenuHint: "Нажмите на раздел, чтобы открыть его",
     currencyConverting: "Конвертация, один момент…", currencyConvertError: "Не удалось выполнить конвертацию: нужно подключение к интернету, либо курс для этой валюты сейчас недоступен.",
     legalMenuLabel: "Конфиденциальность и Условия", legalTabPrivacy: "Конфиденциальность", legalTabTerms: "Условия", legalCheckboxLabel: "Я прочитал(а) и принимаю Политику конфиденциальности и Условия использования", legalContinueBtn: "Продолжить", legalCourtesyNote: "Перевод для удобства — официальной является итальянская версия.",
@@ -1190,6 +1196,7 @@ const UI = {
     updateAvailable: "有新版本可用", updateBtn: "立即更新",
     saveCategoriesBtn: "保存分类", catErrorPrefix: "无法完成：百分比总和为", catErrorSuffix: "%。总和必须正好是100%。",
     cmTitle: "复制和分享分类", cmDesc: "在另一个账户或与他人使用相同的分类和百分比。只会复制名称、百分比和颜色，绝不包含余额或交易记录。", cmCopyBtn: "从其他账户复制", cmShareBtn: "分享模板", cmImportBtn: "导入模板", cmCopyTitle: "从其他账户复制", cmCopyPick: "请选择要为“{name}”复制分类的来源账户。", cmNoOther: "你只有一个账户。创建第二个账户后才能在账户之间复制分类。", cmCount: "{n} 个分类", cmShareTitle: "分享模板", cmShareDesc: "把这个链接（或代码）发给任何人：对方会先看到预览，再决定是否应用。其中只包含“{name}”的分类名称、百分比和颜色。", cmShareSystem: "分享…", cmCopyLink: "复制链接", cmCopyCode: "复制代码", cmCopied: "已复制 ✓", cmCopyFail: "无法自动复制：请长按文字并选择“复制”。", cmShareMsg: "我的 Finbar 分类模板：", cmImportTitle: "导入模板", cmImportDesc: "请粘贴收到的代码或链接。", cmImportPh: "代码或链接", cmContinue: "继续", cmBad: "代码无效，请确认已完整复制。", cmConfirmTitle: "应用这些分类？", cmConfirmTo: "目标账户", cmWarnReplace: "注意：该账户当前的分类将被替换，各分类余额会按新百分比重新计算。总余额不变。", cmWarnLearned: "注意：该账户已学会的词（{n} 个）将被清除，需要重新学习。", cmWarnRecurring: "有 {n} 条自动收支使用了新列表中不存在的分类：它们将改为“所有分类”。", cmWarnDues: "有 {n} 笔到期事项使用了新列表中不存在的分类：付款时再选择分类。", cmWarnUndo: "已记录的交易会保留在历史中，但无法再撤销。", cmApply: "应用", cmCancel: "取消",
+    bdMenu: "预算", bdIntro: "为每个分类设定一个周期内最多想花多少钱。你仍然可以超支：预算用到 25%、50%、75%、85% 和 100% 时我会提醒你。不想设预算的分类留空即可。", bdPeriodTitle: "周期", bdPeriodMonth: "按月", bdPeriodWeek: "按周", bdPeriodCustom: "自定义", bdMonthStart: "周期开始日（每月几号）", bdWeekNote: "每周从周一到周日。", bdEvery: "每", bdUnitDays: "天", bdUnitWeeks: "周", bdFrom: "起始日期", bdCurrent: "当前周期：{from} – {to}", bdColCat: "分类", bdColBudget: "预算", bdColSpent: "已花", bdColDiff: "差额", bdMax: "最多 {n}", bdOver: "超过允许的上限", bdNoFunds: "该分类没有可用资金", bdTotal: "合计", bdMaxHint: "每个分类的上限是周期内可用资金的 {p}%（分类余额加上已花的金额）。", bdSave: "保存预算", bdSaved: "预算已保存 ✓", bdSaveErr: "有些预算超过了允许的上限：请修改后再保存。", bdCardTitle: "预算", bdAlertTitle: "{cat}：已用预算的 {p}%", bdAlertTitleFull: "{cat}：预算已用完", bdAlertBody: "已花 {spent}，预算 {budget}，还剩 {left}。", bdAlertBodyZero: "已花 {spent}，预算 {budget}，已无剩余。", bdAlertBodyOver: "已花 {spent}，预算 {budget}，超出 {over}。", bdAlertClampTitle: "{cat}：预算已调低", bdAlertClamp: "新周期：预算从 {old} 降到 {new}，因为上限是该分类可用资金的 {p}%。",
     recurringMenuShort: "自动收支", settingsMenuHint: "点击某个部分即可打开",
     currencyConverting: "正在转换，请稍候…", currencyConvertError: "无法转换：需要网络连接，或该货币当前没有可用汇率。",
     legalMenuLabel: "隐私与条款", legalTabPrivacy: "隐私政策", legalTabTerms: "使用条款", legalCheckboxLabel: "我已阅读并接受隐私政策和使用条款", legalContinueBtn: "继续", legalCourtesyNote: "礼节性翻译——以意大利文版本为准。",
@@ -1375,8 +1382,10 @@ function inPeriod(dateStr, period) {
   const now = new Date();
   if (period === "today") return dateStr === todayISO();
   if (period === "week") {
-    const start = new Date(now); start.setDate(now.getDate() - now.getDay());
-    return d >= start;
+    const t0 = todayISO();
+    const { y, m, d: dd } = isoParts(t0);
+    const dow = new Date(Date.UTC(y, m - 1, dd)).getUTCDay(); // 0 = domenica
+    return dateStr >= addDaysISO(t0, -((dow + 6) % 7)); // la settimana comincia di lunedì e include la domenica
   }
   if (period === "month") return dateStr.slice(0, 7) === todayISO().slice(0, 7);
   if (period === "lastMonth") {
@@ -1575,6 +1584,11 @@ export default function Finbar() {
   const [catSaveError, setCatSaveError] = useState(null);
   const [modelDlg, setModelDlg] = useState(null); // dialogo copia/condividi/importa modello di categorie
   const [pendingModelCode, setPendingModelCode] = useState(null); // codice arrivato da un link ?modello=…
+  const [budgetAlerts, setBudgetAlerts] = useState([]); // avvisi di budget da mostrare nell'app
+  const [budgetDraft, setBudgetDraft] = useState(null); // bozza della schermata Budget
+  const [budgetErr, setBudgetErr] = useState(false);
+  const [budgetSaved, setBudgetSaved] = useState(false);
+  const [dayKey, setDayKey] = useState(localToday()); // cambia a mezzanotte: fa partire il controllo del nuovo periodo
   const [settingsSection, setSettingsSection] = useState(null);
   const [highlightedCatId, setHighlightedCatId] = useState(null);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
@@ -1841,6 +1855,39 @@ export default function Finbar() {
       setPendingModelCode(null);
     }
   }, [pendingModelCode, loading, account, showLanguagePicker, showLegalGate, tourStep, showNewAccount, modelDlg]);
+  // giorno cambiato (app lasciata aperta o ripresa): serve per il passaggio al nuovo periodo del budget
+  useEffect(() => {
+    const check = () => setDayKey((k) => { const n = localToday(); return n === k ? k : n; });
+    const id = setInterval(check, 60000);
+    document.addEventListener("visibilitychange", check);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", check); };
+  }, []);
+  // Budget: a ogni cambiamento dei dati controlla il nuovo periodo e le soglie 25/50/75/85/100%;
+  // gli avvisi compaiono nell'app e ogni soglia scatta una sola volta per categoria in ogni periodo.
+  useEffect(() => {
+    if (loading || !account || !account.budget) return;
+    const res = evaluateBudget(account, localToday());
+    if (!res.changed) return;
+    if (res.alerts.length) {
+      setBudgetAlerts((prev) => [...res.alerts.map((a) => ({ ...a, accountId: account.id, uid: uid() })), ...prev].slice(0, 12));
+    }
+    persistAccounts({ ...accounts, [account.id]: res.account }, activeId);
+  }, [accounts, activeId, loading, dayKey]);
+  // bozza del budget: si prepara quando si apre la schermata
+  useEffect(() => {
+    if (showSettings && settingsSection === "budget" && account) {
+      const b = account.budget;
+      const per = normalizePeriod(b && b.period, localToday());
+      const weeks = per.days % 7 === 0 && per.days >= 7;
+      setBudgetDraft({
+        type: per.type, startDay: String(per.startDay), anchor: per.anchor,
+        customN: String(weeks ? per.days / 7 : per.days), customUnit: weeks ? "weeks" : "days",
+        items: Object.fromEntries(Object.entries((b && b.items) || {}).filter(([id]) => account.categories[id]).map(([id, v]) => [id, String(v).replace(".", ",")])),
+      });
+      setBudgetErr(false);
+      setBudgetSaved(false);
+    }
+  }, [showSettings, settingsSection, activeId]); // eslint-disable-line
   useEffect(() => {
     if (showSettings && account) {
       setCatDraft(JSON.parse(JSON.stringify(account.categories)));
@@ -2982,6 +3029,52 @@ export default function Finbar() {
                   </button>
                 </div>
               )}
+              {budgetAlerts.filter((a) => a.accountId === account.id).slice(0, 3).map((a) => {
+                const cur = account.currency;
+                const title = a.kind === "clamp" ? fillTpl(ui.bdAlertClampTitle, { cat: a.label }) : a.pct >= 100 ? fillTpl(ui.bdAlertTitleFull, { cat: a.label }) : fillTpl(ui.bdAlertTitle, { cat: a.label, p: a.pct });
+                const body = a.kind === "clamp"
+                  ? fillTpl(ui.bdAlertClamp, { old: currency(a.oldAmount, cur), new: currency(a.newAmount, cur), p: Math.round(BUDGET_MAX_SHARE * 100) })
+                  : a.spent > a.budget + 0.005 ? fillTpl(ui.bdAlertBodyOver, { spent: currency(a.spent, cur), budget: currency(a.budget, cur), over: currency(a.spent - a.budget, cur) })
+                  : a.left <= 0.005 ? fillTpl(ui.bdAlertBodyZero, { spent: currency(a.spent, cur), budget: currency(a.budget, cur) })
+                  : fillTpl(ui.bdAlertBody, { spent: currency(a.spent, cur), budget: currency(a.budget, cur), left: currency(a.left, cur) });
+                const col = a.kind === "clamp" ? t.accent : a.pct >= 100 ? "#FF7A6B" : a.pct >= 75 ? "#F0B429" : t.accent;
+                return (
+                  <div key={a.uid} onClick={() => { setSettingsSection("budget"); setShowSettings(true); }} style={{ display: "flex", alignItems: "flex-start", gap: 10, background: `${col}18`, border: `1px solid ${col}66`, borderRadius: 12, padding: "10px 12px", marginTop: 12, cursor: "pointer" }}>
+                    <Target size={16} color={col} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: fs(12.5), fontWeight: 700, color: t.textStrong }}>{title}</div>
+                      <div style={{ fontSize: fs(12), color: t.textPrimary, lineHeight: 1.45, marginTop: 2 }}>{body}</div>
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); setBudgetAlerts((prev) => prev.filter((x) => x.uid !== a.uid)); }} className="icon-btn" aria-label="Dismiss" style={{ color: t.textMuted, flexShrink: 0 }}><X size={15} /></button>
+                  </div>
+                );
+              })}
+              {account && hasBudget(account) && (() => {
+                const info = budgetRows(account, todayLocal);
+                const list = info.rows.filter((r) => r.budget !== null).sort((a, b) => b.ratio - a.ratio).slice(0, 4);
+                return (
+                  <div onClick={() => { setSettingsSection("budget"); setShowSettings(true); }} style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 14, padding: "10px 12px 4px", marginTop: 14, marginBottom: 14, cursor: "pointer" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
+                      <span style={{ fontSize: fs(12), color: t.textMuted, display: "flex", alignItems: "center", gap: 6 }}><Target size={13} /> {ui.bdCardTitle}</span>
+                      <span style={{ fontSize: fs(11), color: t.textMuted }}>{formatDueDate(info.period.start, appLanguage)} – {formatDueDate(info.period.end, appLanguage)}</span>
+                    </div>
+                    {list.map((r) => {
+                      const col = r.ratio >= 100 ? "#FF7A6B" : r.ratio >= 75 ? "#F0B429" : "#2ECC71";
+                      return (
+                        <div key={r.id} style={{ marginBottom: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: fs(12), color: t.textStrong }}>
+                            <span style={{ wordBreak: "break-word" }}>{r.label}</span>
+                            <span className="num" style={{ color: t.textMuted, flexShrink: 0 }}>{currency(r.spent, account.currency)} / {currency(r.budget, account.currency)}</span>
+                          </div>
+                          <div style={{ height: 5, borderRadius: 3, background: t.surfaceBorder, marginTop: 4, overflow: "hidden" }}>
+                            <div style={{ width: `${Math.min(100, r.ratio)}%`, height: "100%", background: col, borderRadius: 3 }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               {account && dueList.length > 0 && (
                 <div style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 14, padding: "10px 12px 6px", marginTop: 14, marginBottom: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
@@ -3541,7 +3634,8 @@ export default function Finbar() {
             settingsSection === "trend" ? ui.monthlyTrend :
             settingsSection === "categories" ? ui.categoriesTitle :
             settingsSection === "recurring" ? ui.recurringMenuShort :
-            settingsSection === "dues" ? trUI.duesMenu :
+            settingsSection === "budget" ? ui.bdMenu :
+          settingsSection === "dues" ? trUI.duesMenu :
             settingsSection === "legal" ? ui.legalMenuLabel :
             ui.settingsTitle
           }
@@ -3560,6 +3654,7 @@ export default function Finbar() {
                 ...(account ? [{ key: "currency", label: ui.currencyTitle, icon: Wallet }] : []),
                 ...(account && monthlyData.length > 0 ? [{ key: "trend", label: ui.monthlyTrend, icon: TrendingUp }] : []),
                 ...(account ? [{ key: "categories", label: ui.categoriesTitle, icon: Tag }] : []),
+                ...(account ? [{ key: "budget", label: ui.bdMenu, icon: Target }] : []),
                 ...(account ? [{ key: "recurring", label: ui.recurringMenuShort, icon: Repeat }] : []),
                 ...(account ? [{ key: "dues", label: trUI.duesMenu, icon: Calendar }] : []),
                 { key: "legal", label: ui.legalMenuLabel, icon: Shield },
@@ -3948,6 +4043,113 @@ export default function Finbar() {
               )}
             </>
           )}
+
+          {settingsSection === "budget" && account && budgetDraft && (() => {
+            const d = budgetDraft;
+            const setD = (patch) => { setBudgetDraft({ ...d, ...patch }); setBudgetErr(false); setBudgetSaved(false); };
+            const daysVal = d.type === "custom" ? Math.max(1, Math.round(Number(d.customN) || 0)) * (d.customUnit === "weeks" ? 7 : 1) : 30;
+            const period = normalizePeriod({ type: d.type, startDay: Number(d.startDay), days: daysVal, anchor: d.anchor || todayLocal }, todayLocal);
+            const per = periodFor(period, todayLocal);
+            const spentMap = spentByCategory(account, per.start, per.end);
+            const { errors } = validateItems(account, d.items, todayLocal, period);
+            const cur = account.currency;
+            let totB = 0, totS = 0;
+            const rows = Object.entries(account.categories).map(([id, c]) => {
+              const raw = d.items[id] ?? "";
+              const n = Number(String(raw).replace(",", "."));
+              const b = Number.isFinite(n) && n > 0 && !errors[id] ? n : 0;
+              const sp = spentMap[id] || 0;
+              if (b > 0) { totB += b; totS += sp; }
+              return { id, c, raw, b, sp, cap: capFor(c, sp), err: errors[id] };
+            });
+            const segBtn = (key, label) => (
+              <button key={key} onClick={() => setD({ type: key })} style={{ flex: 1, padding: "9px 4px", borderRadius: 9, border: `1px solid ${d.type === key ? t.accent : t.surfaceBorder}`, background: d.type === key ? `${t.accent}22` : t.surface, color: d.type === key ? t.accent : t.textStrong, fontSize: fs(12), fontWeight: 600, cursor: "pointer" }}>{label}</button>
+            );
+            const small = { fontSize: fs(11.5), color: t.textMuted };
+            const field = { ...inputStyle(t, fs), width: "auto", marginBottom: 0, padding: "7px 9px", fontSize: fs(13) };
+            const colW = { name: "1 1 0", input: 80, num: 62 };
+            const sign = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + currency(Math.abs(v), cur);
+            return (
+              <>
+                <div style={{ ...small, lineHeight: 1.5, marginBottom: 12 }}>{ui.bdIntro}</div>
+                <div style={{ fontSize: fs(12.5), fontWeight: 700, color: t.textStrong, marginBottom: 6 }}>{ui.bdPeriodTitle}</div>
+                <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                  {segBtn("month", ui.bdPeriodMonth)}{segBtn("week", ui.bdPeriodWeek)}{segBtn("custom", ui.bdPeriodCustom)}
+                </div>
+                {d.type === "month" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                    <span style={small}>{ui.bdMonthStart}</span>
+                    <select value={d.startDay} onChange={(e) => setD({ startDay: e.target.value })} style={field}>
+                      {Array.from({ length: 28 }, (_, i) => <option key={i + 1} value={String(i + 1)}>{i + 1}</option>)}
+                    </select>
+                  </div>
+                )}
+                {d.type === "week" && <div style={{ ...small, marginBottom: 8 }}>{ui.bdWeekNote}</div>}
+                {d.type === "custom" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={small}>{ui.bdEvery}</span>
+                      <input inputMode="numeric" value={d.customN} onChange={(e) => setD({ customN: e.target.value.replace(/[^0-9]/g, "").slice(0, 3) })} style={{ ...field, width: 64, textAlign: "center" }} />
+                      <select value={d.customUnit} onChange={(e) => setD({ customUnit: e.target.value })} style={field}>
+                        <option value="days">{ui.bdUnitDays}</option><option value="weeks">{ui.bdUnitWeeks}</option>
+                      </select>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={small}>{ui.bdFrom}</span>
+                      <input type="date" value={d.anchor} onChange={(e) => setD({ anchor: e.target.value })} style={field} />
+                    </div>
+                  </div>
+                )}
+                <div style={{ fontSize: fs(12), color: t.textStrong, marginBottom: 14 }}>{fillTpl(ui.bdCurrent, { from: formatDueDate(per.start, appLanguage), to: formatDueDate(per.end, appLanguage) })}</div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 2px 6px", ...small }}>
+                  <span style={{ flex: colW.name }}>{ui.bdColCat}</span>
+                  <span style={{ width: colW.input, textAlign: "right" }}>{ui.bdColBudget}</span>
+                  <span style={{ width: colW.num, textAlign: "right" }}>{ui.bdColSpent}</span>
+                  <span style={{ width: colW.num + 8, textAlign: "right" }}>{ui.bdColDiff}</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {rows.map((r) => (
+                    <div key={r.id}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ flex: colW.name, display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: r.c.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: fs(12.5), color: t.textStrong, wordBreak: "break-word" }}>{r.c.label}</span>
+                        </div>
+                        <input inputMode="decimal" placeholder="—" value={r.raw} onChange={(e) => setD({ items: { ...d.items, [r.id]: e.target.value.replace(/[^0-9.,]/g, "").slice(0, 10) } })}
+                          style={{ ...inputStyle(t, fs), width: colW.input, padding: "7px 8px", marginBottom: 0, textAlign: "right", fontSize: fs(13), border: r.err ? "1px solid #FF7A6B" : `1px solid ${t.surfaceBorder}` }} />
+                        <span className="num" style={{ width: colW.num, textAlign: "right", fontSize: fs(12), color: t.textPrimary }}>{r.sp > 0 ? currency(r.sp, cur) : "—"}</span>
+                        <span className="num" style={{ width: colW.num + 8, textAlign: "right", fontSize: fs(12), fontWeight: 600, color: r.b > 0 ? (r.b - r.sp >= 0 ? "#2ECC71" : "#FF7A6B") : t.textMuted }}>{r.b > 0 ? sign(Math.round((r.b - r.sp) * 100) / 100) : "—"}</span>
+                      </div>
+                      <div style={{ fontSize: fs(10.5), marginTop: 2, paddingLeft: 15, color: r.err ? "#FF7A6B" : t.textMuted }}>
+                        {r.err === "nofunds" ? ui.bdNoFunds : r.err === "over" ? `${ui.bdOver} · ${fillTpl(ui.bdMax, { n: currency(r.cap, cur) })}` : fillTpl(ui.bdMax, { n: currency(r.cap, cur) })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, borderTop: `1px solid ${t.surfaceBorder}`, marginTop: 10, paddingTop: 8 }}>
+                  <span style={{ flex: colW.name, fontSize: fs(12.5), fontWeight: 700, color: t.textStrong }}>{ui.bdTotal}</span>
+                  <span className="num" style={{ width: colW.input, textAlign: "right", fontSize: fs(12.5), fontWeight: 700, color: t.textStrong }}>{currency(totB, cur)}</span>
+                  <span className="num" style={{ width: colW.num, textAlign: "right", fontSize: fs(12), color: t.textPrimary }}>{currency(totS, cur)}</span>
+                  <span className="num" style={{ width: colW.num + 8, textAlign: "right", fontSize: fs(12), fontWeight: 700, color: totB - totS >= 0 ? "#2ECC71" : "#FF7A6B" }}>{totB > 0 ? sign(Math.round((totB - totS) * 100) / 100) : "—"}</span>
+                </div>
+                <div style={{ ...small, fontSize: fs(11), lineHeight: 1.5, margin: "12px 0" }}>{fillTpl(ui.bdMaxHint, { p: Math.round(BUDGET_MAX_SHARE * 100) })}</div>
+                {budgetErr && <div style={{ fontSize: fs(12), color: "#FF7A6B", background: "rgba(255,122,107,0.08)", border: "1px solid #4A2A2A", borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>{ui.bdSaveErr}</div>}
+                <button
+                  onClick={() => {
+                    if (Object.keys(errors).length) { setBudgetErr(true); return; }
+                    const { clean } = validateItems(account, d.items, todayLocal, period);
+                    const budget = Object.keys(clean).length ? buildBudget(account, period, clean, todayLocal) : null;
+                    persistAccounts({ ...accounts, [account.id]: { ...account, budget } }, activeId);
+                    setBudgetSaved(true);
+                  }}
+                  style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: t.accent, color: t.onAccent, fontSize: fs(13.5), fontWeight: 700, cursor: "pointer" }}
+                >
+                  {budgetSaved ? ui.bdSaved : ui.bdSave}
+                </button>
+              </>
+            );
+          })()}
 
           {settingsSection === "recurring" && account && (
             <>
