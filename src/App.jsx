@@ -38,7 +38,7 @@ const PUSH_HIDE_AMOUNTS_KEY = "finex:push-hide-amounts";
 const PUSH_DUES_KEY = "finex:push-dues";
 // Versione dell'app, mostrata in fondo al menu delle Impostazioni: serve a capire quale build gira sul telefono
 // (l'app installata può tenere in cache una versione vecchia). Da aggiornare a ogni rilascio.
-const APP_VERSION = "2026.11.12-a";
+const APP_VERSION = "2026.11.13-a";
 // Chiave pubblica VAPID per le notifiche push (non è segreta; la privata sta solo nei segreti di Supabase).
 const VAPID_PUBLIC_KEY = "BKHQiTELxMKhcohPqrGfjcEOPtsbPu1Dp9-bkzEkNdJtoDl2MYebXYQZ9MEHvLK456oprllimPVV9jWIi5YMbCc";
 const NOTIF_TIP_ENABLED_KEY = "finex:notif-tip-enabled";
@@ -161,7 +161,9 @@ const currency = (n, code = "EUR") => {
     return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n || 0);
   }
 };
-const todayISO = () => new Date().toISOString().slice(0, 10);
+// Giorno di calendario LOCALE (YYYY-MM-DD). Non si usa toISOString(): è in UTC e nei fusi a est di Greenwich
+// (Italia, Romania, Cina) dopo mezzanotte darebbe ancora "ieri".
+const todayISO = () => localTodayISO();
 
 // Fallback AI: se il parser locale non capisce un messaggio, si poteva chiederlo all'AI.
 // Per ora è DISATTIVATO: nessun testo dell'utente lascia il dispositivo verso servizi AI, e la
@@ -692,27 +694,37 @@ function matchDueListCommand(rawText) {
 
 // ---- recurring income/expenses (stipendi, pagette, abbonamenti…) ----
 const RECURRING_KINDS = { biglietto: "Biglietto/viaggio", abbonamento: "Abbonamento", altro: "Altro" };
+// Prossima data di una ricorrenza, in giorni di calendario (calcolo UTC puro: il fuso orario non sposta mai il giorno).
+// Le ricorrenze mensili/annuali restano ancorate al giorno della data di inizio (il 31 → ultimo giorno dei mesi corti).
 function nextOccurrenceDate(rule, fromDate) {
-  const d = new Date(fromDate + "T00:00:00");
-  if (rule.frequency === "weekly") {
-    d.setDate(d.getDate() + 7);
-  } else if (rule.frequency === "yearly") {
-    const anchor = new Date(rule.startDate + "T00:00:00");
-    d.setFullYear(d.getFullYear() + 1);
-    d.setMonth(anchor.getMonth());
-    const lastDay = new Date(d.getFullYear(), anchor.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(anchor.getDate(), lastDay));
-  } else {
-    const anchorDay = new Date(rule.startDate + "T00:00:00").getDate();
-    d.setMonth(d.getMonth() + 1);
-    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(anchorDay, lastDay));
+  if (rule.frequency === "weekly") return addDaysISO(fromDate, 7);
+  const { y, m } = isoParts(fromDate);
+  const anchor = isoParts(rule.startDate);
+  if (rule.frequency === "yearly") {
+    const ny = y + 1;
+    return partsISO(ny, anchor.m, Math.min(anchor.d, daysInMonth(ny, anchor.m)));
   }
-  return d.toISOString().slice(0, 10);
+  let ny = y;
+  let nm = m + 1;
+  if (nm > 12) { nm = 1; ny += 1; }
+  return partsISO(ny, nm, Math.min(anchor.d, daysInMonth(ny, nm)));
+}
+// Le versioni precedenti, nei fusi a est di Greenwich, salvavano come "ultima applicata" il giorno PRIMA di quello vero
+// (es. il 4 invece del 5). Se la data salvata + 1 giorno è proprio un giorno valido della ricorrenza, si usa quella:
+// così non si salta né si duplica nessuna registrazione. Le date già giuste non cambiano.
+function healLastApplied(rule, last) {
+  if (!last || rule.frequency === "weekly") return last;
+  const plus = addDaysISO(last, 1);
+  const { m, d } = isoParts(plus);
+  const anchor = isoParts(rule.startDate);
+  const { y: py } = isoParts(plus);
+  const expected = Math.min(anchor.d, daysInMonth(py, m));
+  if (rule.frequency === "yearly") return m === anchor.m && d === expected ? plus : last;
+  return d === expected ? plus : last;
 }
 function dueOccurrences(rule, todayStr) {
   const dates = [];
-  let cursor = rule.lastAppliedDate;
+  let cursor = healLastApplied(rule, rule.lastAppliedDate);
   let next = cursor ? nextOccurrenceDate(rule, cursor) : rule.startDate;
   let guard = 0;
   while (next <= todayStr && guard < 60) {
@@ -1369,7 +1381,7 @@ function inPeriod(dateStr, period) {
   if (period === "month") return dateStr.slice(0, 7) === todayISO().slice(0, 7);
   if (period === "lastMonth") {
     const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    return dateStr.slice(0, 7) === lm.toISOString().slice(0, 7);
+    return dateStr.slice(0, 7) === `${lm.getFullYear()}-${pad2(lm.getMonth() + 1)}`;
   }
   if (period === "year") return dateStr.slice(0, 4) === todayISO().slice(0, 4);
   return true;
@@ -1917,7 +1929,7 @@ export default function Finbar() {
     if (!account) { setDailyRecap(null); return; }
     const today = todayISO();
     if (recapSeen[account.id] === today) { setDailyRecap(null); return; }
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const yesterday = addDaysISO(today, -1);
     const yesterdayTx = account.transactions.filter((tx) => tx.date === yesterday && tx.type !== "init");
     if (yesterdayTx.length === 0) { setDailyRecap(null); return; }
     const net = yesterdayTx.reduce((sum, tx) => sum + (tx.type === "entrata" ? tx.amount : -tx.amount), 0);
@@ -4259,7 +4271,7 @@ function RecurringForm({ accent, t, categories, onAdd, ui, fs = (px) => px }) {
   const [amount, setAmount] = useState("");
   const [frequency, setFrequency] = useState("monthly");
   const [category, setCategory] = useState("TUTTE");
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(localTodayISO());
 
   const submit = () => {
     const amt = parseFloat(amount.replace(",", "."));
