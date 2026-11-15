@@ -39,7 +39,7 @@ const PUSH_HIDE_AMOUNTS_KEY = "finex:push-hide-amounts";
 const PUSH_DUES_KEY = "finex:push-dues";
 // Versione dell'app, mostrata in fondo al menu delle Impostazioni: serve a capire quale build gira sul telefono
 // (l'app installata può tenere in cache una versione vecchia). Da aggiornare a ogni rilascio.
-const APP_VERSION = "2026.11.14-a";
+const APP_VERSION = "2026.11.14-b";
 const fillTpl = (str, vars) => Object.entries(vars).reduce((acc, [k, v]) => acc.split(`{${k}}`).join(v), str);
 // Chiave pubblica VAPID per le notifiche push (non è segreta; la privata sta solo nei segreti di Supabase).
 const VAPID_PUBLIC_KEY = "BKHQiTELxMKhcohPqrGfjcEOPtsbPu1Dp9-bkzEkNdJtoDl2MYebXYQZ9MEHvLK456oprllimPVV9jWIi5YMbCc";
@@ -3049,32 +3049,11 @@ export default function Finbar() {
                   </div>
                 );
               })}
-              {account && hasBudget(account) && (() => {
-                const info = budgetRows(account, todayLocal);
-                const list = info.rows.filter((r) => r.budget !== null).sort((a, b) => b.ratio - a.ratio).slice(0, 4);
-                return (
-                  <div onClick={() => { setSettingsSection("budget"); setShowSettings(true); }} style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 14, padding: "10px 12px 4px", marginTop: 14, marginBottom: 14, cursor: "pointer" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
-                      <span style={{ fontSize: fs(12), color: t.textMuted, display: "flex", alignItems: "center", gap: 6 }}><Target size={13} /> {ui.bdCardTitle}</span>
-                      <span style={{ fontSize: fs(11), color: t.textMuted }}>{formatDueDate(info.period.start, appLanguage)} – {formatDueDate(info.period.end, appLanguage)}</span>
-                    </div>
-                    {list.map((r) => {
-                      const col = r.ratio >= 100 ? "#FF7A6B" : r.ratio >= 75 ? "#F0B429" : "#2ECC71";
-                      return (
-                        <div key={r.id} style={{ marginBottom: 8 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: fs(12), color: t.textStrong }}>
-                            <span style={{ wordBreak: "break-word" }}>{r.label}</span>
-                            <span className="num" style={{ color: t.textMuted, flexShrink: 0 }}>{currency(r.spent, account.currency)} / {currency(r.budget, account.currency)}</span>
-                          </div>
-                          <div style={{ height: 5, borderRadius: 3, background: t.surfaceBorder, marginTop: 4, overflow: "hidden" }}>
-                            <div style={{ width: `${Math.min(100, r.ratio)}%`, height: "100%", background: col, borderRadius: 3 }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+              {account && hasBudget(account) && (
+                <BudgetCard info={budgetRows(account, todayLocal)} currency={account.currency} t={t} fs={fs} title={ui.bdCardTitle} upLabel={trUI.scrollUpAria} downLabel={trUI.scrollDownAria}
+                  periodText={`${formatDueDate(budgetRows(account, todayLocal).period.start, appLanguage)} – ${formatDueDate(budgetRows(account, todayLocal).period.end, appLanguage)}`}
+                  onOpen={() => { setSettingsSection("budget"); setShowSettings(true); }} />
+              )}
               {account && dueList.length > 0 && (
                 <div style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 14, padding: "10px 12px 6px", marginTop: 14, marginBottom: 14 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
@@ -4587,6 +4566,65 @@ function DueForm({ accent, t, categories, onSave, onCancel, initial, tr, ui, fs 
         <button onClick={submit} style={{ flex: 2, background: accent, color: t.onAccent, border: "none", borderRadius: 8, padding: "9px 0", fontWeight: 700, fontSize: fs(12.5), cursor: "pointer" }}>
           {initial ? tr.duesSaveBtn : tr.duesAddBtn}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// Scheda Budget della home: mostra tutte le categorie con un budget. Con più di 4 righe la lista scorre
+// e compaiono le freccette su/giù (come in chat).
+const BUDGET_CARD_ROWS = 4;
+function BudgetCard({ info, currency: cur, t, fs = (px) => px, title, upLabel, downLabel, periodText, onOpen }) {
+  const listRef = useRef(null);
+  const [edge, setEdge] = useState({ atTop: true, atBottom: true });
+  const list = info.rows.filter((r) => r.budget !== null).sort((a, b) => b.ratio - a.ratio);
+  const scrollable = list.length > BUDGET_CARD_ROWS;
+  const ROW_H = 41;
+  const measure = () => {
+    const el = listRef.current;
+    if (!el) return;
+    setEdge({ atTop: el.scrollTop <= 2, atBottom: el.scrollTop + el.clientHeight >= el.scrollHeight - 2 });
+  };
+  useEffect(() => { measure(); }, [list.length]); // eslint-disable-line
+  const go = (dir) => {
+    const el = listRef.current;
+    if (el) el.scrollBy({ top: dir * ROW_H * 3, behavior: "smooth" });
+  };
+  const arrow = (dir, Icon, label, disabled) => (
+    <button aria-label={label} disabled={disabled} onClick={(e) => { e.stopPropagation(); go(dir); }}
+      style={{ width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: `${t.surface}E6`, border: `1px solid ${t.surfaceBorder}`, color: t.textMuted, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.3 : 1, padding: 0, flexShrink: 0 }}>
+      <Icon size={17} />
+    </button>
+  );
+  return (
+    <div onClick={onOpen} style={{ background: t.surfaceRow, border: `1px solid ${t.modalBorder}`, borderRadius: 14, padding: "10px 12px 4px", marginTop: 14, marginBottom: 14, cursor: "pointer" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
+        <span style={{ fontSize: fs(12), color: t.textMuted, display: "flex", alignItems: "center", gap: 6 }}><Target size={13} /> {title}</span>
+        <span style={{ fontSize: fs(11), color: t.textMuted }}>{periodText}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
+        <div ref={listRef} onScroll={measure} style={{ flex: 1, minWidth: 0, maxHeight: scrollable ? ROW_H * BUDGET_CARD_ROWS : undefined, overflowY: scrollable ? "auto" : "visible", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+          {list.map((r) => {
+            const col = r.ratio >= 100 ? "#FF7A6B" : r.ratio >= 75 ? "#F0B429" : "#2ECC71";
+            return (
+              <div key={r.id} style={{ height: ROW_H - 8, marginBottom: 8, boxSizing: "content-box" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: fs(12), color: t.textStrong }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                  <span className="num" style={{ color: t.textMuted, flexShrink: 0 }}>{currency(r.spent, cur)} / {currency(r.budget, cur)}</span>
+                </div>
+                <div style={{ height: 5, borderRadius: 3, background: t.surfaceBorder, marginTop: 4, overflow: "hidden" }}>
+                  <div style={{ width: `${Math.min(100, r.ratio)}%`, height: "100%", background: col, borderRadius: 3 }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {scrollable && (
+          <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", paddingBottom: 8 }}>
+            {arrow(-1, ChevronUp, upLabel, edge.atTop)}
+            {arrow(1, ChevronDown, downLabel, edge.atBottom)}
+          </div>
+        )}
       </div>
     </div>
   );
